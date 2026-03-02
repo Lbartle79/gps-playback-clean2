@@ -145,14 +145,11 @@ let entry = currentDayData[playbackIndex];
 let lat = null;
 let lng = null;
 
-if(entry.visit){
-lat = entry.visit.latitude;
-lng = entry.visit.longitude;
-}
-
-if(entry.activity){
-lat = entry.activity.latitude;
-lng = entry.activity.longitude;
+if(entry.timelinePath && entry.timelinePath.length > 0){
+    let geoString = entry.timelinePath[0].point; // "geo:52.866742,-104.594641"
+    let coords = geoString.replace("geo:","").split(",");
+    lat = parseFloat(coords[0]);
+    lng = parseFloat(coords[1]);
 }
 
 if(lat && lng){
