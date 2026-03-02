@@ -1,175 +1,205 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8" />
-<title>GPS Playback Clean</title>
+<meta charset="utf-8"/>
+<title>GPS Investigation Playback</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <style>
-body { margin:0; font-family: Arial; }
-#controls { padding:10px; background:#f4f4f4; }
-#map { height:70vh; }
-button, select, input { margin:5px; }
-#info { padding:10px; }
+body { margin:0; font-family:Arial; }
+#controls { padding:10px; background:#f2f2f2; }
+#map { height:60vh; }
+#log { height:30vh; overflow:auto; padding:10px; background:white; border-top:1px solid #ccc; font-size:14px;}
+button { margin-right:5px; }
 </style>
 </head>
-
 <body>
 
 <div id="controls">
-<label>Day:</label>
 <select id="daySelect"></select>
-
-<button onclick="play()">Play</button>
-<button onclick="pause()">Pause</button>
-
-<label>Speed:</label>
-<input type="range" id="speed" min="1" max="20" value="5">
+<button onclick="startPlayback()">Play</button>
+<button onclick="pausePlayback()">Pause</button>
+<button onclick="resetPlayback()">Reset</button>
+Speed:
+<input type="range" id="speed" min="300" max="2000" value="800">
 </div>
 
 <div id="map"></div>
-
-<div id="info">
-<h3>Day Analysis</h3>
-<div id="summary"></div>
-</div>
+<div id="log"></div>
 
 <script>
 
-/* =======================
-   CLEAN DATA STRUCTURE
-======================= */
+const TIMEZONE = "America/Regina";
 
-let data = {
-
-  "2026-01-01": [
-    { time:"19:57", lat:52.866742, lng:-104.594641 }
-  ],
-
-  "2026-01-02": [
-    { time:"04:57", lat:52.859961, lng:-104.600857 },
-
-    { time:"06:28", lat:52.215994, lng:-104.506632 },
-    { time:"06:30", lat:52.193380, lng:-104.518376 },
-    { time:"06:31", lat:52.179263, lng:-104.523217 },
-    { time:"06:32", lat:52.174383, lng:-104.523798 },
-    { time:"06:33", lat:52.173160, lng:-104.517192 },
-    { time:"06:35", lat:52.173158, lng:-104.515588 },
-    { time:"06:36", lat:52.173151, lng:-104.509970 },
-    { time:"06:37", lat:52.173108, lng:-104.497994 }
-  ]
-
-};
-
-/* =======================
-   MAP SETUP
-======================= */
-
-let map = L.map('map').setView([52.856, -104.617], 10);
-
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19
+let map = L.map('map').setView([53,-105],7);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+maxZoom:18
 }).addTo(map);
 
-let marker = null;
-let polyline = null;
+let marker = L.marker([53,-105]).addTo(map);
+let polyline = L.polyline([], {color:'blue'}).addTo(map);
+
+let fullData = [];
+let currentDayData = [];
+let playbackIndex = 0;
 let timer = null;
-let currentIndex = 0;
-let currentPoints = [];
 
-/* =======================
-   LOAD DAY
-======================= */
-
-let daySelect = document.getElementById("daySelect");
-
-for (let day in data) {
-  let option = document.createElement("option");
-  option.value = day;
-  option.text = day;
-  daySelect.appendChild(option);
-}
-
-function loadDay(day) {
-
-  pause();
-
-  currentPoints = data[day];
-   currentPoints.sort((a, b) => {
-  return new Date("1970-01-01T" + a.time) - 
-         new Date("1970-01-01T" + b.time);
+function formatTime(dateStr){
+return new Date(dateStr).toLocaleString('en-CA',{
+timeZone:TIMEZONE,
+year:'numeric',
+month:'short',
+day:'2-digit',
+hour:'numeric',
+minute:'2-digit',
+hour12:true
 });
-  currentIndex = 0;
-
-  if (!currentPoints || currentPoints.length === 0) return;
-
-  if (marker) map.removeLayer(marker);
-  if (polyline) map.removeLayer(polyline);
-
-  polyline = L.polyline([], {color:'blue'}).addTo(map);
-
-  marker = L.circleMarker(
-    [currentPoints[0].lat, currentPoints[0].lng],
-    { radius:6, color:'red' }
-  ).addTo(map);
-
-  map.fitBounds(
-    currentPoints.map(p => [p.lat, p.lng])
-  );
-
-  document.getElementById("summary").innerHTML =
-    "Total Points: " + currentPoints.length;
 }
 
-/* =======================
-   PLAY
-======================= */
-
-function play() {
-
-  let speed = document.getElementById("speed").value;
-
-  pause();
-
-  timer = setInterval(function() {
-
-    if (currentIndex >= currentPoints.length) {
-      pause();
-      return;
-    }
-
-    let point = currentPoints[currentIndex];
-
-    polyline.addLatLng([point.lat, point.lng]);
-    marker.setLatLng([point.lat, point.lng]);
-
-    currentIndex++;
-
-  }, 1000 / speed);
+function formatDuration(start,end){
+let ms = new Date(end) - new Date(start);
+let mins = Math.floor(ms/60000);
+let hrs = Math.floor(mins/60);
+mins = mins % 60;
+return hrs + "h " + mins + "m";
 }
 
-/* =======================
-   PAUSE
-======================= */
+fetch('location-history.json')
+.then(r=>r.json())
+.then(data=>{
 
-function pause() {
-  clearInterval(timer);
-}
+fullData = data.timelineObjects
+.filter(obj=>obj.activitySegment || obj.placeVisit)
+.sort((a,b)=> new Date(
+(a.activitySegment?.duration?.startTimestampMs ||
+a.placeVisit?.duration?.startTimestampMs)
+) - new Date(
+(b.activitySegment?.duration?.startTimestampMs ||
+b.placeVisit?.duration?.startTimestampMs)
+));
 
-/* =======================
-   EVENTS
-======================= */
+groupByDay();
 
-daySelect.addEventListener("change", function() {
-  loadDay(this.value);
 });
 
-loadDay(daySelect.value);
+function groupByDay(){
+
+let days = {};
+
+fullData.forEach(entry=>{
+
+let startMs =
+entry.activitySegment?.duration?.startTimestampMs ||
+entry.placeVisit?.duration?.startTimestampMs;
+
+let date = new Date(Number(startMs)).toLocaleDateString('en-CA',{timeZone:TIMEZONE});
+
+if(!days[date]) days[date] = [];
+days[date].push(entry);
+
+});
+
+let select = document.getElementById("daySelect");
+
+Object.keys(days).forEach(day=>{
+let opt = document.createElement("option");
+opt.value = day;
+opt.textContent = day;
+select.appendChild(opt);
+});
+
+select.addEventListener("change",()=>{
+loadDay(days[select.value]);
+});
+
+loadDay(days[Object.keys(days)[0]]);
+
+}
+
+function loadDay(entries){
+currentDayData = entries;
+resetPlayback();
+document.getElementById("log").innerHTML = "";
+}
+
+function startPlayback(){
+if(timer) return;
+timer = setInterval(playStep, document.getElementById("speed").value);
+}
+
+function pausePlayback(){
+clearInterval(timer);
+timer = null;
+}
+
+function resetPlayback(){
+pausePlayback();
+playbackIndex = 0;
+polyline.setLatLngs([]);
+document.getElementById("log").innerHTML = "";
+}
+
+function playStep(){
+
+if(playbackIndex >= currentDayData.length){
+pausePlayback();
+return;
+}
+
+let entry = currentDayData[playbackIndex];
+
+if(entry.placeVisit){
+
+let visit = entry.placeVisit;
+
+let lat = visit.location.latitudeE7 / 1e7;
+let lng = visit.location.longitudeE7 / 1e7;
+
+let start = new Date(Number(visit.duration.startTimestampMs)).toISOString();
+let end = new Date(Number(visit.duration.endTimestampMs)).toISOString();
+
+marker.setLatLng([lat,lng]);
+map.setView([lat,lng],13);
+
+document.getElementById("log").innerHTML +=
+"<b>Visit</b><br>" +
+"Arrived: " + formatTime(start) + "<br>" +
+"Departed: " + formatTime(end) + "<br>" +
+"Duration: " + formatDuration(start,end) +
+"<hr>";
+
+}
+
+if(entry.activitySegment){
+
+let seg = entry.activitySegment;
+
+let endLat = seg.endLocation.latitudeE7 / 1e7;
+let endLng = seg.endLocation.longitudeE7 / 1e7;
+
+let start = new Date(Number(seg.duration.startTimestampMs)).toISOString();
+let end = new Date(Number(seg.duration.endTimestampMs)).toISOString();
+
+polyline.addLatLng([endLat,endLng]);
+marker.setLatLng([endLat,endLng]);
+map.setView([endLat,endLng],12);
+
+document.getElementById("log").innerHTML +=
+"<b>Movement</b><br>" +
+"Start: " + formatTime(start) + "<br>" +
+"End: " + formatTime(end) + "<br>" +
+"Duration: " + formatDuration(start,end) +
+"<hr>";
+
+}
+
+playbackIndex++;
+
+}
 
 </script>
-
 </body>
 </html>
