@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8"/>
-<title>GPS Investigation Playback</title>
+<title>GPS Playback</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
@@ -74,14 +74,6 @@ fetch('location-history.json')
 fullData = data
 .filter(entry => entry.startTime && entry.endTime)
 .sort((a,b)=> new Date(a.startTime) - new Date(b.startTime));
-.filter(obj=>obj.activitySegment || obj.placeVisit)
-.sort((a,b)=> new Date(
-(a.activitySegment?.duration?.startTimestampMs ||
-a.placeVisit?.duration?.startTimestampMs)
-) - new Date(
-(b.activitySegment?.duration?.startTimestampMs ||
-b.placeVisit?.duration?.startTimestampMs)
-));
 
 groupByDay();
 
@@ -93,18 +85,16 @@ let days = {};
 
 fullData.forEach(entry=>{
 
-let startMs =
-entry.activitySegment?.duration?.startTimestampMs ||
-entry.placeVisit?.duration?.startTimestampMs;
+let localDate = new Date(entry.startTime)
+.toLocaleDateString('en-CA',{timeZone:TIMEZONE});
 
-let date = new Date(Number(startMs)).toLocaleDateString('en-CA',{timeZone:TIMEZONE});
-
-if(!days[date]) days[date] = [];
-days[date].push(entry);
+if(!days[localDate]) days[localDate] = [];
+days[localDate].push(entry);
 
 });
 
 let select = document.getElementById("daySelect");
+select.innerHTML = "";
 
 Object.keys(days).forEach(day=>{
 let opt = document.createElement("option");
@@ -124,7 +114,6 @@ loadDay(days[Object.keys(days)[0]]);
 function loadDay(entries){
 currentDayData = entries;
 resetPlayback();
-document.getElementById("log").innerHTML = "";
 }
 
 function startPlayback(){
@@ -153,50 +142,30 @@ return;
 
 let entry = currentDayData[playbackIndex];
 
-if(entry.placeVisit){
+let lat = null;
+let lng = null;
 
-let visit = entry.placeVisit;
+if(entry.visit){
+lat = entry.visit.latitude;
+lng = entry.visit.longitude;
+}
 
-let lat = visit.location.latitudeE7 / 1e7;
-let lng = visit.location.longitudeE7 / 1e7;
+if(entry.activity){
+lat = entry.activity.latitude;
+lng = entry.activity.longitude;
+}
 
-let start = new Date(Number(visit.duration.startTimestampMs)).toISOString();
-let end = new Date(Number(visit.duration.endTimestampMs)).toISOString();
-
+if(lat && lng){
 marker.setLatLng([lat,lng]);
-map.setView([lat,lng],13);
-
-document.getElementById("log").innerHTML +=
-"<b>Visit</b><br>" +
-"Arrived: " + formatTime(start) + "<br>" +
-"Departed: " + formatTime(end) + "<br>" +
-"Duration: " + formatDuration(start,end) +
-"<hr>";
-
+map.setView([lat,lng],12);
+polyline.addLatLng([lat,lng]);
 }
 
-if(entry.activitySegment){
-
-let seg = entry.activitySegment;
-
-let endLat = seg.endLocation.latitudeE7 / 1e7;
-let endLng = seg.endLocation.longitudeE7 / 1e7;
-
-let start = new Date(Number(seg.duration.startTimestampMs)).toISOString();
-let end = new Date(Number(seg.duration.endTimestampMs)).toISOString();
-
-polyline.addLatLng([endLat,endLng]);
-marker.setLatLng([endLat,endLng]);
-map.setView([endLat,endLng],12);
-
 document.getElementById("log").innerHTML +=
-"<b>Movement</b><br>" +
-"Start: " + formatTime(start) + "<br>" +
-"End: " + formatTime(end) + "<br>" +
-"Duration: " + formatDuration(start,end) +
+"<b>Start:</b> " + formatTime(entry.startTime) + "<br>" +
+"<b>End:</b> " + formatTime(entry.endTime) + "<br>" +
+"<b>Duration:</b> " + formatDuration(entry.startTime, entry.endTime) +
 "<hr>";
-
-}
 
 playbackIndex++;
 
