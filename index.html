@@ -141,7 +141,6 @@ return;
 }
 
 let entry = currentDayData[playbackIndex];
-
 let lat = null;
 let lng = null;
 
@@ -157,6 +156,7 @@ marker.setLatLng([lat,lng]);
 map.setView([lat,lng],12);
 polyline.addLatLng([lat,lng]);
 }
+
 
 document.getElementById("log").innerHTML +=
 "<b>Start:</b> " + formatTime(entry.startTime) + "<br>" +
