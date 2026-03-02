@@ -91,6 +91,10 @@ function loadDay(day) {
   pause();
 
   currentPoints = data[day];
+   currentPoints.sort((a, b) => {
+  return new Date("1970-01-01T" + a.time) - 
+         new Date("1970-01-01T" + b.time);
+});
   currentIndex = 0;
 
   if (!currentPoints || currentPoints.length === 0) return;
