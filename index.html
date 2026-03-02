@@ -71,7 +71,9 @@ fetch('location-history.json')
 .then(r=>r.json())
 .then(data=>{
 
-fullData = data.timelineObjects
+fullData = data
+.filter(entry => entry.startTime && entry.endTime)
+.sort((a,b)=> new Date(a.startTime) - new Date(b.startTime));
 .filter(obj=>obj.activitySegment || obj.placeVisit)
 .sort((a,b)=> new Date(
 (a.activitySegment?.duration?.startTimestampMs ||
