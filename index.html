@@ -3,17 +3,15 @@
 <head>
 <meta charset="utf-8"/>
 <title>GPS Playback</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <style>
 body { margin:0; font-family:Arial; }
-#controls { padding:10px; background:#f2f2f2; }
+#controls { padding:10px; background:#f0f0f0; }
 #map { height:60vh; }
-#log { height:30vh; overflow:auto; padding:10px; background:white; border-top:1px solid #ccc; font-size:14px;}
-button { margin-right:5px; }
+#log { padding:10px; }
 </style>
 </head>
 <body>
@@ -24,7 +22,7 @@ button { margin-right:5px; }
 <button onclick="pausePlayback()">Pause</button>
 <button onclick="resetPlayback()">Reset</button>
 Speed:
-<input type="range" id="speed" min="300" max="2000" value="800">
+<input type="range" id="speed" min="100" max="2000" value="800">
 </div>
 
 <div id="map"></div>
@@ -34,9 +32,9 @@ Speed:
 
 const TIMEZONE = "America/Regina";
 
-let map = L.map('map').setView([53,-105],7);
+let map = L.map('map').setView([53,-105], 7);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-maxZoom:18
+    maxZoom:18
 }).addTo(map);
 
 let marker = L.marker([53,-105]).addTo(map);
@@ -48,125 +46,134 @@ let playbackIndex = 0;
 let timer = null;
 
 function formatTime(dateStr){
-return new Date(dateStr).toLocaleString('en-CA',{
-timeZone:TIMEZONE,
-year:'numeric',
-month:'short',
-day:'2-digit',
-hour:'numeric',
-minute:'2-digit',
-hour12:true
-});
+    return new Date(dateStr).toLocaleString("en-CA",{
+        timeZone:TIMEZONE,
+        year:'numeric',
+        month:'short',
+        day:'2-digit',
+        hour:'numeric',
+        minute:'2-digit',
+        hour12:true
+    });
 }
 
 function formatDuration(start,end){
-let ms = new Date(end) - new Date(start);
-let mins = Math.floor(ms/60000);
-let hrs = Math.floor(mins/60);
-mins = mins % 60;
-return hrs + "h " + mins + "m";
+    let diff = (new Date(end) - new Date(start))/60000;
+    let h = Math.floor(diff/60);
+    let m = Math.floor(diff%60);
+    return h+"h "+m+"m";
 }
 
-fetch('location-history.json')
-.then(r=>r.json())
-.then(data=>{
-
-fullData = data
-.filter(entry => entry.startTime && entry.endTime)
-.sort((a,b)=> new Date(a.startTime) - new Date(b.startTime));
-
-groupByDay();
-
-});
-
-function groupByDay(){
-
-let days = {};
-
-fullData.forEach(entry=>{
-
-let localDate = new Date(entry.startTime)
-.toLocaleDateString('en-CA',{timeZone:TIMEZONE});
-
-if(!days[localDate]) days[localDate] = [];
-days[localDate].push(entry);
-
-});
-
-let select = document.getElementById("daySelect");
-select.innerHTML = "";
-
-Object.keys(days).forEach(day=>{
-let opt = document.createElement("option");
-opt.value = day;
-opt.textContent = day;
-select.appendChild(opt);
-});
-
-select.addEventListener("change",()=>{
-loadDay(days[select.value]);
-});
-
-loadDay(days[Object.keys(days)[0]]);
-
+function groupByDay(data){
+    let grouped = {};
+    data.forEach(entry=>{
+        let date = new Date(entry.startTime).toLocaleDateString("en-CA",{timeZone:TIMEZONE});
+        if(!grouped[date]) grouped[date]=[];
+        grouped[date].push(entry);
+    });
+    return grouped;
 }
 
-function loadDay(entries){
-currentDayData = entries;
-resetPlayback();
+function loadDay(day){
+    pausePlayback();
+    playbackIndex=0;
+    polyline.setLatLngs([]);
+    document.getElementById("log").innerHTML="";
+
+    currentDayData = fullData[day] || [];
+
+    if(currentDayData.length>0){
+        let first = currentDayData[0];
+        moveMarker(first);
+        showStops(day);
+    }
 }
 
-function startPlayback(){
-if(timer) return;
-timer = setInterval(playStep, document.getElementById("speed").value);
-}
+function moveMarker(entry){
 
-function pausePlayback(){
-clearInterval(timer);
-timer = null;
-}
+    let lat=null;
+    let lng=null;
 
-function resetPlayback(){
-pausePlayback();
-playbackIndex = 0;
-polyline.setLatLngs([]);
-document.getElementById("log").innerHTML = "";
+    if(entry.activity && entry.activity.end){
+        let coords = entry.activity.end.replace("geo:","").split(",");
+        lat=parseFloat(coords[0]);
+        lng=parseFloat(coords[1]);
+    }
+
+    if(entry.visit && entry.visit.point){
+        let coords = entry.visit.point.replace("geo:","").split(",");
+        lat=parseFloat(coords[0]);
+        lng=parseFloat(coords[1]);
+    }
+
+    if(lat!==null && lng!==null){
+        marker.setLatLng([lat,lng]);
+        map.setView([lat,lng],12);
+        polyline.addLatLng([lat,lng]);
+    }
 }
 
 function playStep(){
+    if(playbackIndex>=currentDayData.length){
+        pausePlayback();
+        return;
+    }
 
-if(playbackIndex >= currentDayData.length){
-pausePlayback();
-return;
+    let entry=currentDayData[playbackIndex];
+    moveMarker(entry);
+
+    playbackIndex++;
 }
 
-let entry = currentDayData[playbackIndex];
-let lat = null;
-let lng = null;
-
-if(entry.timelinePath && entry.timelinePath.length > 0){
-    let geoString = entry.timelinePath[0].point; // "geo:52.866742,-104.594641"
-    let coords = geoString.replace("geo:","").split(",");
-    lat = parseFloat(coords[0]);
-    lng = parseFloat(coords[1]);
+function startPlayback(){
+    if(timer) return;
+    let speed=document.getElementById("speed").value;
+    timer=setInterval(playStep,speed);
 }
 
-if(lat && lng){
-marker.setLatLng([lat,lng]);
-map.setView([lat,lng],12);
-polyline.addLatLng([lat,lng]);
+function pausePlayback(){
+    clearInterval(timer);
+    timer=null;
 }
 
-
-document.getElementById("log").innerHTML +=
-"<b>Start:</b> " + formatTime(entry.startTime) + "<br>" +
-"<b>End:</b> " + formatTime(entry.endTime) + "<br>" +
-"<b>Duration:</b> " + formatDuration(entry.startTime, entry.endTime) +
-"<hr>";
-
-playbackIndex++;
-
+function resetPlayback(){
+    pausePlayback();
+    playbackIndex=0;
+    polyline.setLatLngs([]);
+    document.getElementById("log").innerHTML="";
 }
+
+function showStops(day){
+    let html="";
+    currentDayData.forEach(entry=>{
+        if(entry.startTime && entry.endTime){
+            html+=`
+            <div>
+            <b>Start:</b> ${formatTime(entry.startTime)}<br>
+            <b>End:</b> ${formatTime(entry.endTime)}<br>
+            <b>Duration:</b> ${formatDuration(entry.startTime,entry.endTime)}
+            </div><hr>`;
+        }
+    });
+    document.getElementById("log").innerHTML=html;
+}
+
+fetch("location-history.json")
+.then(r=>r.json())
+.then(data=>{
+    fullData = groupByDay(data);
+    let select=document.getElementById("daySelect");
+
+    Object.keys(fullData).sort().forEach(day=>{
+        let opt=document.createElement("option");
+        opt.value=day;
+        opt.textContent=day;
+        select.appendChild(opt);
+    });
+
+    select.onchange=()=>loadDay(select.value);
+    loadDay(select.value);
+});
 
 </script>
 </body>
