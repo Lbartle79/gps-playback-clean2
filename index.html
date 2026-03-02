@@ -2,22 +2,48 @@
 <html>
 <head>
 <meta charset="utf-8" />
-<title>Clean Map Test</title>
+<title>GPS Stop Viewer</title>
 
-<link
-  rel="stylesheet"
-  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-/>
+<link rel="stylesheet"
+ href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
 <style>
-body { margin: 0; font-family: Arial; }
-#map { height: 100vh; }
+body { margin:0; font-family: Arial; }
+
+#controls {
+  padding:15px;
+  background:#f4f4f4;
+}
+
+select, button {
+  font-size:18px;
+  padding:10px;
+  margin-right:10px;
+}
+
+#map {
+  height:60vh;
+}
+
+#info {
+  padding:15px;
+  font-size:18px;
+  border-top:1px solid #ccc;
+}
 </style>
 </head>
 
 <body>
 
+<div id="controls">
+  <label>Day:</label>
+  <select id="daySelect"></select>
+  <button onclick="prevStop()">Previous</button>
+  <button onclick="nextStop()">Next</button>
+</div>
+
 <div id="map"></div>
+<div id="info">Loading...</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -25,12 +51,142 @@ body { margin: 0; font-family: Arial; }
 const map = L.map('map').setView([53.2, -105.75], 7);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19
+  maxZoom:19
 }).addTo(map);
 
-L.marker([53.2, -105.75]).addTo(map)
-  .bindPopup("Map is working.")
-  .openPopup();
+const bigIcon = L.icon({
+  iconUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  shadowUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+  iconSize:[45,75],
+  iconAnchor:[22,75],
+  shadowSize:[75,75]
+});
+
+let marker=null;
+let stopsByDay={};
+let currentStops=[];
+let currentIndex=0;
+
+function parseGeo(str){
+  const parts=str.replace("geo:","").split(",");
+  return [parseFloat(parts[0]),parseFloat(parts[1])];
+}
+
+function formatTime(str){
+  const d=new Date(str);
+  return d.toLocaleString(undefined,{
+    hour:"numeric",
+    minute:"2-digit",
+    hour12:true
+  });
+}
+
+function formatDuration(start,end){
+  const ms=new Date(end)-new Date(start);
+  const mins=Math.floor(ms/60000);
+  const h=Math.floor(mins/60);
+  const m=mins%60;
+  return h+"h "+m+"m";
+}
+
+fetch("location-history.json")
+.then(r=>r.json())
+.then(data=>{
+
+  data.forEach(entry=>{
+
+    let latLng=null;
+
+    if(entry.visit && entry.visit.topCandidate?.placeLocation){
+      latLng=parseGeo(entry.visit.topCandidate.placeLocation);
+    }
+
+    if(!latLng && entry.activity && entry.activity.start){
+      latLng=parseGeo(entry.activity.start);
+    }
+
+    if(!latLng) return;
+
+    const durationMs=new Date(entry.endTime)-new Date(entry.startTime);
+    if(durationMs<10000) return;
+
+    const d=new Date(entry.startTime);
+    const key=d.getFullYear()+"-"+
+      String(d.getMonth()+1).padStart(2,"0")+"-"+
+      String(d.getDate()).padStart(2,"0");
+
+    if(!stopsByDay[key]) stopsByDay[key]=[];
+
+    stopsByDay[key].push({
+      latLng,
+      start:entry.startTime,
+      end:entry.endTime
+    });
+
+  });
+
+  const select=document.getElementById("daySelect");
+
+  Object.keys(stopsByDay).sort().forEach(day=>{
+    const opt=document.createElement("option");
+    opt.value=day;
+    opt.textContent=day;
+    select.appendChild(opt);
+  });
+
+  select.addEventListener("change",()=>{
+    loadDay(select.value);
+  });
+
+  if(select.options.length>0){
+    loadDay(select.options[0].value);
+  } else {
+    document.getElementById("info").textContent="No stops found.";
+  }
+
+})
+.catch(()=>{
+  document.getElementById("info").textContent="JSON failed to load.";
+});
+
+function loadDay(day){
+  currentStops=stopsByDay[day]||[];
+  currentIndex=0;
+  if(currentStops.length>0){
+    showStop();
+  } else {
+    document.getElementById("info").textContent="No stops for this day.";
+  }
+}
+
+function showStop(){
+  const stop=currentStops[currentIndex];
+  if(!stop) return;
+
+  if(marker) map.removeLayer(marker);
+
+  marker=L.marker(stop.latLng,{icon:bigIcon}).addTo(map);
+  map.setView(stop.latLng,13);
+
+  document.getElementById("info").innerHTML=
+    "<strong>Arrival:</strong> "+formatTime(stop.start)+"<br>"+
+    "<strong>Departure:</strong> "+formatTime(stop.end)+"<br>"+
+    "<strong>Duration:</strong> "+formatDuration(stop.start,stop.end);
+}
+
+function nextStop(){
+  if(currentIndex<currentStops.length-1){
+    currentIndex++;
+    showStop();
+  }
+}
+
+function prevStop(){
+  if(currentIndex>0){
+    currentIndex--;
+    showStop();
+  }
+}
 </script>
 
 </body>
