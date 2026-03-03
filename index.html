@@ -3,141 +3,143 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Full GPS Segment Viewer</title>
+<title>GPS Segment Viewer</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
 <style>
 body {
-    margin: 0;
-    font-family: Arial, sans-serif;
-    background: #f4f4f4;
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f4f4f4;
 }
 
 #list {
-    height: 45vh;
-    overflow-y: scroll;
-    padding: 15px;
-    background: white;
+  height: 45vh;
+  overflow-y: scroll;
+  padding: 15px;
+  background: white;
 }
 
 .segment {
-    padding: 10px;
-    margin-bottom: 10px;
-    border-left: 5px solid #007bff;
-    background: #fafafa;
-    cursor: pointer;
+  padding: 10px;
+  margin-bottom: 10px;
+  border-left: 5px solid #007bff;
+  background: #fafafa;
+  cursor: pointer;
 }
 
 .segment:hover {
-    background: #e6f0ff;
+  background: #e6f0ff;
 }
 
 .segment h3 {
-    margin: 0 0 5px 0;
-    font-size: 16px;
+  margin: 0 0 5px 0;
+  font-size: 16px;
 }
 
 .segment p {
-    margin: 3px 0;
-    font-size: 14px;
+  margin: 3px 0;
+  font-size: 14px;
 }
 
 #map {
-    height: 55vh;
+  height: 55vh;
 }
 </style>
 </head>
 <body>
 
-<div id="list"></div>
+<div id="list">Loading data...</div>
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
 
-// ======== PASTE YOUR RAW JSON DATA BELOW THIS LINE ========
-
-// Replace the empty array below with your FULL location-history.json content.
-// It must be an array of objects like the ones you showed earlier.
-
-const data = [
-    // PASTE YOUR FULL JSON FILE CONTENT HERE
-];
-
-// ===========================================================
-
 const listContainer = document.getElementById("list");
 
 const map = L.map("map").setView([52.0, -104.0], 6);
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "© OpenStreetMap contributors"
+  attribution: "© OpenStreetMap contributors"
 }).addTo(map);
 
-let markers = [];
-
 function formatDuration(start, end) {
-    const diff = (new Date(end) - new Date(start)) / 1000;
-    const minutes = Math.floor(diff / 60);
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
+  const diff = (new Date(end) - new Date(start)) / 1000;
+  const minutes = Math.floor(diff / 60);
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
 
-    if (hours > 0) {
-        return hours + " hr " + remainingMinutes + " min";
-    }
-    return minutes + " min";
+  if (hours > 0) {
+    return hours + " hr " + remainingMinutes + " min";
+  }
+  return minutes + " min";
 }
 
-data.forEach((entry, index) => {
+fetch("location-history.json")
+  .then(response => response.json())
+  .then(data => {
 
-    if (!entry.activity || !entry.activity.start) return;
+    listContainer.innerHTML = "";
 
-    const geo = entry.activity.start.replace("geo:", "");
-    const parts = geo.split(",");
-    const lat = parseFloat(parts[0]);
-    const lng = parseFloat(parts[1]);
+    let markers = [];
 
-    const start = entry.startTime;
-    const end = entry.endTime;
+    data.forEach((entry, index) => {
 
-    const duration = formatDuration(start, end);
+      if (!entry.activity || !entry.activity.start) return;
 
-    const segmentDiv = document.createElement("div");
-    segmentDiv.className = "segment";
+      const geo = entry.activity.start.replace("geo:", "");
+      const parts = geo.split(",");
+      const lat = parseFloat(parts[0]);
+      const lng = parseFloat(parts[1]);
 
-    segmentDiv.innerHTML = `
+      const start = entry.startTime;
+      const end = entry.endTime;
+
+      const duration = formatDuration(start, end);
+
+      const segmentDiv = document.createElement("div");
+      segmentDiv.className = "segment";
+
+      segmentDiv.innerHTML = `
         <h3>Segment ${index + 1}</h3>
         <p><strong>Arrival:</strong> ${new Date(start).toLocaleString()}</p>
         <p><strong>Departure:</strong> ${new Date(end).toLocaleString()}</p>
         <p><strong>Duration:</strong> ${duration}</p>
         <p><strong>Coordinates:</strong> ${lat}, ${lng}</p>
         <p><a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank">Open in Google Maps</a></p>
-    `;
+      `;
 
-    const marker = L.marker([lat, lng]).addTo(map);
-    marker.bindPopup(`
+      const marker = L.marker([lat, lng]).addTo(map);
+      marker.bindPopup(`
         <strong>Segment ${index + 1}</strong><br>
         Arrival: ${new Date(start).toLocaleString()}<br>
         Departure: ${new Date(end).toLocaleString()}<br>
         Duration: ${duration}<br>
         ${lat}, ${lng}
-    `);
+      `);
 
-    segmentDiv.addEventListener("click", function() {
+      segmentDiv.addEventListener("click", function() {
         map.setView([lat, lng], 15);
         marker.openPopup();
+      });
+
+      listContainer.appendChild(segmentDiv);
+      markers.push(marker);
+
     });
 
-    listContainer.appendChild(segmentDiv);
-    markers.push(marker);
-});
+    if (markers.length > 0) {
+      const group = L.featureGroup(markers);
+      map.fitBounds(group.getBounds());
+    }
 
-if (markers.length > 0) {
-    const group = L.featureGroup(markers);
-    map.fitBounds(group.getBounds());
-}
+  })
+  .catch(error => {
+    listContainer.innerHTML = "Error loading location-history.json";
+    console.error(error);
+  });
 
 </script>
 
