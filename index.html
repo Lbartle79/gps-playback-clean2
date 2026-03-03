@@ -107,28 +107,31 @@ fetch("location-history.json")
         <p><strong>Arrival:</strong> ${new Date(start).toLocaleString()}</p>
         <p><strong>Departure:</strong> ${new Date(end).toLocaleString()}</p>
         <p><strong>Duration:</strong> ${duration}</p>
-        <p><strong>Coordinates:</strong> ${lat}, ${lng}</p>
         <p><a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank">Open in Google Maps</a></p>
-      `;
+    `;
 
-      const marker = L.marker([lat, lng]).addTo(map);
-      marker.bindPopup(`
-        <strong>Segment ${index + 1}</strong><br>
-        Arrival: ${new Date(start).toLocaleString()}<br>
-        Departure: ${new Date(end).toLocaleString()}<br>
-        Duration: ${duration}<br>
-        ${lat}, ${lng}
-      `);
+    const marker = L.marker([lat, lng]).addTo(map);
+    marker.bindPopup(`
+      <strong>Segment ${index + 1} - ${label}</strong><br>
+      Arrival: ${new Date(startTime).toLocaleString()}<br>
+      Departure: ${new Date(endTime).toLocaleString()}<br>
+      Duration: ${duration}<br>
+      ${lat}, ${lng}
+    `);
 
-      segmentDiv.addEventListener("click", function() {
-        map.setView([lat, lng], 15);
-        marker.openPopup();
-      });
-
-      listContainer.appendChild(segmentDiv);
-      markers.push(marker);
-
+    segmentDiv.addEventListener("click", function() {
+      map.setView([lat, lng], 15);
+      marker.openPopup();
     });
+
+    listContainer.appendChild(segmentDiv);
+    markers.push(marker);
+  }
+
+  createPoint("Start", startGeo);
+  createPoint("End", endGeo);
+    
+    )};
 
     if (markers.length > 0) {
       const group = L.featureGroup(markers);
