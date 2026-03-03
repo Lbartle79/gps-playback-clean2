@@ -77,7 +77,7 @@ function formatDuration(start, end) {
   return minutes + " min";
 }
 
-fetch("location-history.json")
+fetch("location-history.json?v=" + new Date().getTime())
   .then(response => response.json())
   .then(data => {
 
