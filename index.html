@@ -2,31 +2,42 @@
 <html>
 <head>
 <meta charset="utf-8"/>
-<title>GPS Playback</title>
+<title>GPS Stop Viewer</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
 <style>
-body { margin:0; font-family:Arial, sans-serif; }
+body {
+  margin:0;
+  font-family:Arial, sans-serif;
+}
 
-#map { height:80vh; width:100%; }
+#map {
+  height:60vh;
+  width:100%;
+}
 
 #controls {
-  padding:15px;
+  padding:20px;
   background:#111;
   color:white;
-  font-size:18px;
+  font-size:20px;
 }
 
 select, button {
   font-size:18px;
-  padding:8px 14px;
-  margin:5px;
+  padding:10px 16px;
+  margin:6px;
 }
 
 #info {
-  margin-top:10px;
-  font-size:18px;
+  margin-top:20px;
+  font-size:22px;
+  line-height:1.6;
+  background:white;
+  color:black;
+  padding:20px;
+  border-radius:10px;
 }
 </style>
 </head>
@@ -35,8 +46,9 @@ select, button {
 
 <div id="controls">
   <select id="daySelect"></select>
-  <button onclick="prevStop()">◀ Prev</button>
+  <button onclick="prevStop()">◀ Previous</button>
   <button onclick="nextStop()">Next ▶</button>
+
   <div id="info"></div>
 </div>
 
@@ -46,13 +58,16 @@ select, button {
 
 <script>
 
-const map = L.map('map').setView([53.2,-105.7],8);
+const map = L.map('map').setView([53.2, -105.7], 7);
 
-L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
-  attribution:'&copy; OpenStreetMap &copy; CARTO',
-  subdomains:'abcd',
-  maxZoom:20
-}).addTo(map);
+L.tileLayer(
+  'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+  {
+    attribution:'&copy; OpenStreetMap &copy; CARTO',
+    subdomains:'abcd',
+    maxZoom:20
+  }
+).addTo(map);
 
 const bigIcon = L.icon({
   iconUrl:'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
@@ -81,29 +96,36 @@ function formatDuration(start,end){
 }
 
 function showStop(){
-  const stop=currentStops[currentIndex];
+  const stop = currentStops[currentIndex];
   if(!stop) return;
 
   if(marker) map.removeLayer(marker);
 
-  marker=L.marker(stop.latLng,{icon:bigIcon}).addTo(map);
-  map.setView(stop.latLng,16);
+  marker = L.marker(stop.latLng,{icon:bigIcon}).addTo(map);
+  map.setView(stop.latLng,15);
 
-  document.getElementById("info").innerHTML=
-    `<strong>Arrival:</strong> ${formatTime(stop.start)}<br>
-     <strong>Departure:</strong> ${formatTime(stop.end)}<br>
-     <strong>Duration:</strong> ${formatDuration(stop.start,stop.end)}`;
+  document.getElementById("info").innerHTML = `
+    <div style="font-size:24px;font-weight:bold;margin-bottom:12px;">
+      Stop ${currentIndex + 1} of ${currentStops.length}
+    </div>
+
+    <div><strong>Arrival:</strong> ${formatTime(stop.start)}</div>
+    <div><strong>Departure:</strong> ${formatTime(stop.end)}</div>
+    <div><strong>Duration:</strong> ${formatDuration(stop.start, stop.end)}</div>
+    <div><strong>Latitude:</strong> ${stop.latLng[0].toFixed(6)}</div>
+    <div><strong>Longitude:</strong> ${stop.latLng[1].toFixed(6)}</div>
+  `;
 }
 
 function nextStop(){
-  if(currentIndex<currentStops.length-1){
+  if(currentIndex < currentStops.length - 1){
     currentIndex++;
     showStop();
   }
 }
 
 function prevStop(){
-  if(currentIndex>0){
+  if(currentIndex > 0){
     currentIndex--;
     showStop();
   }
@@ -111,50 +133,72 @@ function prevStop(){
 
 function loadData(data){
 
-  const visits=data.semanticSegments.filter(s=>s.visit);
+  let segments = [];
 
-  const grouped={};
+  if(data.semanticSegments){
+    segments = data.semanticSegments;
+  } else if(data.timelineObjects){
+    segments = data.timelineObjects;
+  }
 
-  visits.forEach(v=>{
-    const date=v.startTime.split("T")[0];
-    if(!grouped[date]) grouped[date]=[];
+  const visits = segments.filter(s => s.visit);
 
-    const latLng=[
-      v.visit.topCandidate.placeLocation.latitudeE7/1e7,
-      v.visit.topCandidate.placeLocation.longitudeE7/1e7
-    ];
+  const grouped = {};
+
+  visits.forEach(v => {
+
+    const start = v.startTime;
+    const end = v.endTime;
+
+    const date = start.split("T")[0];
+
+    if(!grouped[date]) grouped[date] = [];
+
+    let latLng;
+
+    if(v.visit.topCandidate.placeLocation.latitudeE7){
+      latLng = [
+        v.visit.topCandidate.placeLocation.latitudeE7 / 1e7,
+        v.visit.topCandidate.placeLocation.longitudeE7 / 1e7
+      ];
+    } else {
+      const geo = v.visit.topCandidate.placeLocation;
+      const parts = geo.replace("geo:","").split(",");
+      latLng = [parseFloat(parts[0]), parseFloat(parts[1])];
+    }
 
     grouped[date].push({
-      start:v.startTime,
-      end:v.endTime,
+      start,
+      end,
       latLng
     });
+
   });
 
-  const select=document.getElementById("daySelect");
+  const select = document.getElementById("daySelect");
 
   Object.keys(grouped).sort().forEach(date=>{
-    const opt=document.createElement("option");
-    opt.value=date;
-    opt.text=date;
+    const opt = document.createElement("option");
+    opt.value = date;
+    opt.text = date;
     select.appendChild(opt);
   });
 
-  select.onchange=function(){
-    currentStops=grouped[this.value];
-    currentIndex=0;
+  select.onchange = function(){
+    currentStops = grouped[this.value];
+    currentIndex = 0;
     showStop();
   };
 
-  select.selectedIndex=0;
-  currentStops=grouped[select.value];
+  select.selectedIndex = 0;
+  currentStops = grouped[select.value];
   showStop();
 }
 
-fetch("location-history.json")
-.then(res=>res.json())
-.then(data=>loadData(data))
-.catch(()=>alert("Error loading JSON"));
+fetch("./location-history.json")
+.then(res => res.json())
+.then(data => loadData(data))
+.catch(() => alert("Error loading JSON file"));
 
 </script>
 
