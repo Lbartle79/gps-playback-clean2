@@ -4,127 +4,127 @@
 <meta charset="utf-8"/>
 <title>GPS Stop Map</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <style>
 body {
-    margin:0;
-    display:flex;
-    font-family:Arial;
+  margin: 0;
+  font-family: Arial, sans-serif;
 }
-#sidebar {
-    width:40%;
-    height:100vh;
-    overflow:auto;
-    padding:15px;
-    background:#f2f2f2;
-    box-sizing:border-box;
+
+#container {
+  display: flex;
+  height: 100vh;
 }
-#map {
-    width:60%;
-    height:100vh;
+
+#list {
+  width: 40%;
+  overflow-y: scroll;
+  padding: 20px;
+  background: #f4f4f4;
+  font-size: 18px;
+  line-height: 1.6;
 }
+
 .stop {
-    padding:10px;
-    border-bottom:1px solid #ccc;
-    cursor:pointer;
+  padding: 15px;
+  margin-bottom: 15px;
+  background: white;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
+
 .stop:hover {
-    background:#ddd;
+  background: #e6f2ff;
 }
-.leaflet-popup-content {
-    font-size:15px;
-    line-height:1.6;
+
+#map {
+  width: 60%;
+  height: 100%;
 }
 </style>
 </head>
 <body>
 
-<div id="sidebar"></div>
-<div id="map"></div>
-
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<div id="container">
+  <div id="list"></div>
+  <div id="map"></div>
+</div>
 
 <script>
+const map = L.map('map').setView([53.2033, -105.7531], 12);
 
-// ====== PASTE YOUR STOP DATA BELOW THIS LINE ======
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors'
+}).addTo(map);
 
-// IMPORTANT:
-// Replace this sample data with the actual stop array
-// I can generate the full embedded stop array for you if needed
+let marker;
 
-const stops = [
-    {
-        start: "2025-02-09T14:54:00",
-        end: "2025-02-09T15:15:00",
-        lat: 53.2033,
-        lng: -105.7531
-    },
-    {
-        start: "2025-02-09T15:15:00",
-        end: "2025-02-11T06:36:00",
-        lat: 52.8566,
-        lng: -104.6189
-    }
-];
-
-// ================================================
-
-const map = L.map('map').setView([53.2, -105.7], 7);
-
-L.tileLayer(
-  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-  { maxZoom: 19 }
-).addTo(map);
-
-let marker = null;
-
-function formatTime(d){
-    return new Date(d).toLocaleString('en-US');
+function formatDate(d) {
+  return new Date(d).toLocaleString();
 }
 
-function duration(a,b){
-    const diff = (new Date(b)-new Date(a))/1000;
-    const h = Math.floor(diff/3600);
-    const m = Math.floor((diff%3600)/60);
-    return h + "h " + m + "m";
+async function reverseGeocode(lat, lng) {
+  const res = await fetch(
+    `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
+  );
+  const data = await res.json();
+  return data.display_name || "Address not found";
 }
 
-const sidebar = document.getElementById("sidebar");
+fetch('location-history.json')
+.then(res => res.json())
+.then(async data => {
 
-stops.forEach((stop,i)=>{
+  const listDiv = document.getElementById('list');
 
-    const div = document.createElement("div");
-    div.className = "stop";
+  for (let i = 0; i < data.length; i++) {
 
-    div.innerHTML =
-        "<strong>Stop " + (i+1) + "</strong><br>" +
-        "Arrival: " + formatTime(stop.start) + "<br>" +
-        "Departure: " + formatTime(stop.end) + "<br>" +
-        "Duration: " + duration(stop.start, stop.end) + "<br>" +
-        "Lat/Lng: " + stop.lat.toFixed(5) + ", " + stop.lng.toFixed(5);
+    const stop = data[i];
+    const lat = stop.latLng[0];
+    const lng = stop.latLng[1];
 
-    div.onclick = function(){
+    const address = await reverseGeocode(lat, lng);
 
-        if(marker){
-            map.removeLayer(marker);
-        }
+    const stopDiv = document.createElement('div');
+    stopDiv.className = 'stop';
 
-        marker = L.marker([stop.lat, stop.lng]).addTo(map);
-        map.setView([stop.lat, stop.lng], 14);
+    stopDiv.innerHTML = `
+      <strong>Stop ${i+1}</strong><br>
+      Arrival: ${formatDate(stop.arrival)}<br>
+      Departure: ${formatDate(stop.departure)}<br>
+      Duration: ${stop.duration}<br>
+      Address: ${address}
+    `;
 
-        marker.bindPopup(
-            "<strong>Stop " + (i+1) + "</strong><br>" +
-            "Arrival: " + formatTime(stop.start) + "<br>" +
-            "Departure: " + formatTime(stop.end) + "<br>" +
-            "Duration: " + duration(stop.start, stop.end) + "<br>" +
-            "Lat/Lng: " + stop.lat.toFixed(5) + ", " + stop.lng.toFixed(5)
-        ).openPopup();
+    stopDiv.onclick = () => {
+      if (marker) map.removeLayer(marker);
+
+      marker = L.marker([lat, lng]).addTo(map);
+
+      marker.bindPopup(`
+        <strong>Stop ${i+1}</strong><br>
+        Arrival: ${formatDate(stop.arrival)}<br>
+        Departure: ${formatDate(stop.departure)}<br>
+        Duration: ${stop.duration}<br>
+        Address: ${address}
+      `).openPopup();
+
+      map.setView([lat, lng], 15);
     };
 
-    sidebar.appendChild(div);
-});
+    listDiv.appendChild(stopDiv);
+  }
 
+});
 </script>
 
 </body>
