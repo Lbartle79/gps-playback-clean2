@@ -1,34 +1,32 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8" />
-<title>GPS Stop Viewer</title>
+<meta charset="utf-8"/>
+<title>GPS Playback</title>
 
-<link rel="stylesheet"
- href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
 <style>
-body { margin:0; font-family: Arial; }
+body { margin:0; font-family:Arial, sans-serif; }
+
+#map { height:80vh; width:100%; }
 
 #controls {
   padding:15px;
-  background:#f4f4f4;
+  background:#111;
+  color:white;
+  font-size:18px;
 }
 
 select, button {
   font-size:18px;
-  padding:10px;
-  margin-right:10px;
-}
-
-#map {
-  height:60vh;
+  padding:8px 14px;
+  margin:5px;
 }
 
 #info {
-  padding:15px;
+  margin-top:10px;
   font-size:18px;
-  border-top:1px solid #ccc;
 }
 </style>
 </head>
@@ -36,188 +34,65 @@ select, button {
 <body>
 
 <div id="controls">
-  <label>Day:</label>
   <select id="daySelect"></select>
-  <button onclick="prevStop()">Previous</button>
-  <button onclick="nextStop()">Next</button>
+  <button onclick="prevStop()">◀ Prev</button>
+  <button onclick="nextStop()">Next ▶</button>
+  <div id="info"></div>
 </div>
 
 <div id="map"></div>
-<div id="info">Loading...</div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
-const map = L.map('map').setView([53.2, -105.75], 18);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-  attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-  subdomains: 'abcd',
-  maxZoom: 20
+
+const map = L.map('map').setView([53.2,-105.7],8);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
+  attribution:'&copy; OpenStreetMap &copy; CARTO',
+  subdomains:'abcd',
+  maxZoom:20
 }).addTo(map);
-const streetLayer = L.tileLayer(
-  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-  { maxZoom: 19 }
-);
-
-const satelliteLayer = L.tileLayer(
-  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-  { maxZoom: 19 }
-);
-
-streetLayer.addTo(map);
-
-L.control.layers(
-  {
-    "Street": streetLayer,
-    "Satellite": satelliteLayer
-  }
-).addTo(map);
 
 const bigIcon = L.icon({
-  iconUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  shadowUrl:"https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  iconSize:[45,75],
-  iconAnchor:[22,75],
-  shadowSize:[75,75]
+  iconUrl:'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+  iconSize:[35,55],
+  iconAnchor:[17,55]
 });
 
-let marker=null;
-let stopsByDay={};
-let currentStops=[];
-let currentIndex=0;
+let marker = null;
+let currentStops = [];
+let currentIndex = 0;
 
-function parseGeo(str){
-  const parts=str.replace("geo:","").split(",");
-  return [parseFloat(parts[0]),parseFloat(parts[1])];
-}
-
-function formatTime(str){
-  const d=new Date(str);
-  return d.toLocaleString(undefined,{
-    hour:"numeric",
-    minute:"2-digit",
+function formatTime(dateStr){
+  const d = new Date(dateStr);
+  return d.toLocaleString('en-US',{
+    hour:'numeric',
+    minute:'2-digit',
     hour12:true
   });
 }
 
 function formatDuration(start,end){
-  const ms=new Date(end)-new Date(start);
-  const mins=Math.floor(ms/60000);
-  const h=Math.floor(mins/60);
-  const m=mins%60;
-  return h+"h "+m+"m";
-}
-
-fetch("location-history.json")
-.then(r=>r.json())
-.then(data=>{
-
-  data.forEach(entry=>{
-
-    let latLng=null;
-
-    if(entry.visit && entry.visit.topCandidate?.placeLocation){
-      latLng=parseGeo(entry.visit.topCandidate.placeLocation);
-    }
-
-    if(!latLng && entry.activity && entry.activity.start){
-      latLng=parseGeo(entry.activity.start);
-    }
-
-    if(!latLng) return;
-
-    const durationMs=new Date(entry.endTime)-new Date(entry.startTime);
-    if(durationMs<10000) return;
-
-    const d=new Date(entry.startTime);
-    const key=d.getFullYear()+"-"+
-      String(d.getMonth()+1).padStart(2,"0")+"-"+
-      String(d.getDate()).padStart(2,"0");
-
-    if(!stopsByDay[key]) stopsByDay[key]=[];
-
-    stopsByDay[key].push({
-      latLng,
-      start:entry.startTime,
-      end:entry.endTime
-    });
-
-  });
-
-  const select=document.getElementById("daySelect");
-
-  Object.keys(stopsByDay).sort().forEach(day=>{
-    const opt=document.createElement("option");
-    opt.value=day;
-    opt.textContent=day;
-    select.appendChild(opt);
-  });
-
-  select.addEventListener("change",()=>{
-    loadDay(select.value);
-  });
-
-  if(select.options.length>0){
-    loadDay(select.options[0].value);
-  } else {
-    document.getElementById("info").textContent="No stops found.";
-  }
-
-})
-.catch(()=>{
-  document.getElementById("info").textContent="JSON failed to load.";
-});
-
-function loadDay(day){
-  currentStops=stopsByDay[day]||[];
-  currentIndex=0;
-  if(currentStops.length>0){
-    showStop();
-  } else {
-    document.getElementById("info").textContent="No stops for this day.";
-  }
+  const diff = (new Date(end)-new Date(start))/1000;
+  const hrs = Math.floor(diff/3600);
+  const mins = Math.floor((diff%3600)/60);
+  return `${hrs}h ${mins}m`;
 }
 
 function showStop(){
-  const stop = currentStops[currentIndex];
+  const stop=currentStops[currentIndex];
   if(!stop) return;
 
   if(marker) map.removeLayer(marker);
 
-  marker = L.marker(stop.latLng, { icon: bigIcon }).addTo(map);
-  map.setView(stop.latLng, 17);
+  marker=L.marker(stop.latLng,{icon:bigIcon}).addTo(map);
+  map.setView(stop.latLng,16);
 
-  document.getElementById("info").innerHTML = "Loading location name...";
-
-  fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${stop.latLng[0]}&lon=${stop.latLng[1]}`)
-  .then(res => res.json())
-  .then(place => {
-
-    const name =
-      place.name ||
-      (place.address && (
-        place.address.road ||
-        place.address.neighbourhood ||
-        place.address.hamlet ||
-        place.address.town ||
-        place.address.city
-      )) ||
-      place.display_name ||
-      "Unknown location";
-
-    document.getElementById("info").innerHTML =
-      "<strong>Location:</strong> " + name + "<br>" +
-      "<strong>Arrival:</strong> " + formatTime(stop.start) + "<br>" +
-      "<strong>Departure:</strong> " + formatTime(stop.end) + "<br>" +
-      "<strong>Duration:</strong> " + formatDuration(stop.start, stop.end);
-
-  })
-  .catch(() => {
-    document.getElementById("info").innerHTML =
-      "<strong>Arrival:</strong> " + formatTime(stop.start) + "<br>" +
-      "<strong>Departure:</strong> " + formatTime(stop.end) + "<br>" +
-      "<strong>Duration:</strong> " + formatDuration(stop.start, stop.end);
-  });
+  document.getElementById("info").innerHTML=
+    `<strong>Arrival:</strong> ${formatTime(stop.start)}<br>
+     <strong>Departure:</strong> ${formatTime(stop.end)}<br>
+     <strong>Duration:</strong> ${formatDuration(stop.start,stop.end)}`;
 }
 
 function nextStop(){
@@ -233,6 +108,54 @@ function prevStop(){
     showStop();
   }
 }
+
+function loadData(data){
+
+  const visits=data.semanticSegments.filter(s=>s.visit);
+
+  const grouped={};
+
+  visits.forEach(v=>{
+    const date=v.startTime.split("T")[0];
+    if(!grouped[date]) grouped[date]=[];
+
+    const latLng=[
+      v.visit.topCandidate.placeLocation.latitudeE7/1e7,
+      v.visit.topCandidate.placeLocation.longitudeE7/1e7
+    ];
+
+    grouped[date].push({
+      start:v.startTime,
+      end:v.endTime,
+      latLng
+    });
+  });
+
+  const select=document.getElementById("daySelect");
+
+  Object.keys(grouped).sort().forEach(date=>{
+    const opt=document.createElement("option");
+    opt.value=date;
+    opt.text=date;
+    select.appendChild(opt);
+  });
+
+  select.onchange=function(){
+    currentStops=grouped[this.value];
+    currentIndex=0;
+    showStop();
+  };
+
+  select.selectedIndex=0;
+  currentStops=grouped[select.value];
+  showStop();
+}
+
+fetch("location-history.json")
+.then(res=>res.json())
+.then(data=>loadData(data))
+.catch(()=>alert("Error loading JSON"));
+
 </script>
 
 </body>
