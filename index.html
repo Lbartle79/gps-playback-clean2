@@ -61,9 +61,21 @@ const listContainer = document.getElementById("list");
 
 const map = L.map("map").setView([52.0, -104.0], 6);
 
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  attribution: "© OpenStreetMap contributors"
-}).addTo(map);
+const streets = L.tileLayer(
+  "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  { attribution: "© OpenStreetMap contributors" }
+);
+
+const satellite = L.tileLayer(
+  "https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
+  { attribution: "© OpenStreetMap contributors" }
+);
+
+streets.addTo(map);
+
+L.control.layers(
+  { "Streets": streets, "Satellite Style": satellite }
+).addTo(map);
 
 function formatDuration(start, end) {
   const diff = (new Date(end) - new Date(start)) / 1000;
