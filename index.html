@@ -3,21 +3,16 @@
 <head>
 <meta charset="utf-8"/>
 <title>GPS Stop Map</title>
-
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <link
   rel="stylesheet"
   href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
 />
-
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <style>
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-}
+body { margin:0; font-family: Arial, sans-serif; }
 
 #container {
   display: flex;
@@ -42,9 +37,7 @@ body {
   box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
-.stop:hover {
-  background: #e6f2ff;
-}
+.stop:hover { background: #e6f2ff; }
 
 #map {
   width: 60%;
@@ -60,7 +53,53 @@ body {
 </div>
 
 <script>
-const map = L.map('map').setView([53.2033, -105.7531], 12);
+const rawData = [
+/* PASTE YOUR ENTIRE location-history.json CONTENT HERE */
+];
+</script>
+
+<script>
+
+// ===== PARSE VISITS FROM RAW DATA =====
+
+function formatLocal(dateStr) {
+  return new Date(dateStr).toLocaleString();
+}
+
+function calculateDuration(start, end) {
+  const s = new Date(start);
+  const e = new Date(end);
+  const diff = (e - s) / 1000 / 60;
+  const h = Math.floor(diff / 60);
+  const m = Math.floor(diff % 60);
+  return h + "h " + m + "m";
+}
+
+const stops = [];
+
+rawData.forEach(entry => {
+  if (entry.visit && entry.visit.hierarchyLevel === "0") {
+
+    const start = entry.startTime;
+    const end = entry.endTime;
+    const geo = entry.visit.topCandidate.placeLocation;
+
+    if (geo && geo.startsWith("geo:")) {
+      const coords = geo.replace("geo:", "").split(",");
+      stops.push({
+        lat: parseFloat(coords[0]),
+        lng: parseFloat(coords[1]),
+        arrival: start,
+        departure: end,
+        duration: calculateDuration(start, end)
+      });
+    }
+  }
+});
+
+// ===== BUILD MAP =====
+
+const map = L.map('map').setView([53.2, -105.75], 10);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '© OpenStreetMap contributors'
@@ -68,63 +107,41 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 let marker;
 
-function formatDate(d) {
-  return new Date(d).toLocaleString();
-}
+const listDiv = document.getElementById('list');
 
-async function reverseGeocode(lat, lng) {
-  const res = await fetch(
-    `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
-  );
-  const data = await res.json();
-  return data.display_name || "Address not found";
-}
+stops.forEach((stop, index) => {
 
-fetch('location-history.json')
-.then(res => res.json())
-.then(async data => {
+  const div = document.createElement('div');
+  div.className = 'stop';
 
-  const listDiv = document.getElementById('list');
+  div.innerHTML = `
+    <strong>Stop ${index+1}</strong><br>
+    Arrival: ${formatLocal(stop.arrival)}<br>
+    Departure: ${formatLocal(stop.departure)}<br>
+    Duration: ${stop.duration}<br>
+    Coordinates: ${stop.lat}, ${stop.lng}
+  `;
 
-  for (let i = 0; i < data.length; i++) {
+  div.onclick = () => {
 
-    const stop = data[i];
-    const lat = stop.latLng[0];
-    const lng = stop.latLng[1];
+    if (marker) map.removeLayer(marker);
 
-    const address = await reverseGeocode(lat, lng);
+    marker = L.marker([stop.lat, stop.lng]).addTo(map);
 
-    const stopDiv = document.createElement('div');
-    stopDiv.className = 'stop';
-
-    stopDiv.innerHTML = `
-      <strong>Stop ${i+1}</strong><br>
-      Arrival: ${formatDate(stop.arrival)}<br>
-      Departure: ${formatDate(stop.departure)}<br>
+    marker.bindPopup(`
+      <strong>Stop ${index+1}</strong><br>
+      Arrival: ${formatLocal(stop.arrival)}<br>
+      Departure: ${formatLocal(stop.departure)}<br>
       Duration: ${stop.duration}<br>
-      Address: ${address}
-    `;
+      Coordinates: ${stop.lat}, ${stop.lng}
+    `).openPopup();
 
-    stopDiv.onclick = () => {
-      if (marker) map.removeLayer(marker);
+    map.setView([stop.lat, stop.lng], 15);
+  };
 
-      marker = L.marker([lat, lng]).addTo(map);
-
-      marker.bindPopup(`
-        <strong>Stop ${i+1}</strong><br>
-        Arrival: ${formatDate(stop.arrival)}<br>
-        Departure: ${formatDate(stop.departure)}<br>
-        Duration: ${stop.duration}<br>
-        Address: ${address}
-      `).openPopup();
-
-      map.setView([lat, lng], 15);
-    };
-
-    listDiv.appendChild(stopDiv);
-  }
-
+  listDiv.appendChild(div);
 });
+
 </script>
 
 </body>
