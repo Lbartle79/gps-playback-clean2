@@ -2,203 +2,128 @@
 <html>
 <head>
 <meta charset="utf-8"/>
-<title>GPS Stop Viewer</title>
+<title>GPS Stop Map</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
 <style>
 body {
-  margin:0;
-  font-family:Arial, sans-serif;
+    margin:0;
+    display:flex;
+    font-family:Arial;
 }
-
+#sidebar {
+    width:40%;
+    height:100vh;
+    overflow:auto;
+    padding:15px;
+    background:#f2f2f2;
+    box-sizing:border-box;
+}
 #map {
-  height:60vh;
-  width:100%;
+    width:60%;
+    height:100vh;
 }
-
-#controls {
-  padding:20px;
-  background:#111;
-  color:white;
-  font-size:20px;
+.stop {
+    padding:10px;
+    border-bottom:1px solid #ccc;
+    cursor:pointer;
 }
-
-select, button {
-  font-size:18px;
-  padding:10px 16px;
-  margin:6px;
+.stop:hover {
+    background:#ddd;
 }
-
-#info {
-  margin-top:20px;
-  font-size:22px;
-  line-height:1.6;
-  background:white;
-  color:black;
-  padding:20px;
-  border-radius:10px;
+.leaflet-popup-content {
+    font-size:15px;
+    line-height:1.6;
 }
 </style>
 </head>
-
 <body>
 
-<div id="controls">
-  <select id="daySelect"></select>
-  <button onclick="prevStop()">◀ Previous</button>
-  <button onclick="nextStop()">Next ▶</button>
-
-  <div id="info"></div>
-</div>
-
+<div id="sidebar"></div>
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
 
+// ====== PASTE YOUR STOP DATA BELOW THIS LINE ======
+
+// IMPORTANT:
+// Replace this sample data with the actual stop array
+// I can generate the full embedded stop array for you if needed
+
+const stops = [
+    {
+        start: "2025-02-09T14:54:00",
+        end: "2025-02-09T15:15:00",
+        lat: 53.2033,
+        lng: -105.7531
+    },
+    {
+        start: "2025-02-09T15:15:00",
+        end: "2025-02-11T06:36:00",
+        lat: 52.8566,
+        lng: -104.6189
+    }
+];
+
+// ================================================
+
 const map = L.map('map').setView([53.2, -105.7], 7);
 
 L.tileLayer(
-  'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-  {
-    attribution:'&copy; OpenStreetMap &copy; CARTO',
-    subdomains:'abcd',
-    maxZoom:20
-  }
+  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  { maxZoom: 19 }
 ).addTo(map);
 
-const bigIcon = L.icon({
-  iconUrl:'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
-  iconSize:[35,55],
-  iconAnchor:[17,55]
-});
-
 let marker = null;
-let currentStops = [];
-let currentIndex = 0;
 
-function formatTime(dateStr){
-  const d = new Date(dateStr);
-  return d.toLocaleString('en-US',{
-    hour:'numeric',
-    minute:'2-digit',
-    hour12:true
-  });
+function formatTime(d){
+    return new Date(d).toLocaleString('en-US');
 }
 
-function formatDuration(start,end){
-  const diff = (new Date(end)-new Date(start))/1000;
-  const hrs = Math.floor(diff/3600);
-  const mins = Math.floor((diff%3600)/60);
-  return `${hrs}h ${mins}m`;
+function duration(a,b){
+    const diff = (new Date(b)-new Date(a))/1000;
+    const h = Math.floor(diff/3600);
+    const m = Math.floor((diff%3600)/60);
+    return h + "h " + m + "m";
 }
 
-function showStop(){
-  const stop = currentStops[currentIndex];
-  if(!stop) return;
+const sidebar = document.getElementById("sidebar");
 
-  if(marker) map.removeLayer(marker);
+stops.forEach((stop,i)=>{
 
-  marker = L.marker(stop.latLng,{icon:bigIcon}).addTo(map);
-  map.setView(stop.latLng,15);
+    const div = document.createElement("div");
+    div.className = "stop";
 
-  document.getElementById("info").innerHTML = `
-    <div style="font-size:24px;font-weight:bold;margin-bottom:12px;">
-      Stop ${currentIndex + 1} of ${currentStops.length}
-    </div>
+    div.innerHTML =
+        "<strong>Stop " + (i+1) + "</strong><br>" +
+        "Arrival: " + formatTime(stop.start) + "<br>" +
+        "Departure: " + formatTime(stop.end) + "<br>" +
+        "Duration: " + duration(stop.start, stop.end) + "<br>" +
+        "Lat/Lng: " + stop.lat.toFixed(5) + ", " + stop.lng.toFixed(5);
 
-    <div><strong>Arrival:</strong> ${formatTime(stop.start)}</div>
-    <div><strong>Departure:</strong> ${formatTime(stop.end)}</div>
-    <div><strong>Duration:</strong> ${formatDuration(stop.start, stop.end)}</div>
-    <div><strong>Latitude:</strong> ${stop.latLng[0].toFixed(6)}</div>
-    <div><strong>Longitude:</strong> ${stop.latLng[1].toFixed(6)}</div>
-  `;
-}
+    div.onclick = function(){
 
-function nextStop(){
-  if(currentIndex < currentStops.length - 1){
-    currentIndex++;
-    showStop();
-  }
-}
+        if(marker){
+            map.removeLayer(marker);
+        }
 
-function prevStop(){
-  if(currentIndex > 0){
-    currentIndex--;
-    showStop();
-  }
-}
+        marker = L.marker([stop.lat, stop.lng]).addTo(map);
+        map.setView([stop.lat, stop.lng], 14);
 
-function loadData(data){
+        marker.bindPopup(
+            "<strong>Stop " + (i+1) + "</strong><br>" +
+            "Arrival: " + formatTime(stop.start) + "<br>" +
+            "Departure: " + formatTime(stop.end) + "<br>" +
+            "Duration: " + duration(stop.start, stop.end) + "<br>" +
+            "Lat/Lng: " + stop.lat.toFixed(5) + ", " + stop.lng.toFixed(5)
+        ).openPopup();
+    };
 
-  let segments = [];
-
-  if(data.semanticSegments){
-    segments = data.semanticSegments;
-  } else if(data.timelineObjects){
-    segments = data.timelineObjects;
-  }
-
-  const visits = segments.filter(s => s.visit);
-
-  const grouped = {};
-
-  visits.forEach(v => {
-
-    const start = v.startTime;
-    const end = v.endTime;
-
-    const date = start.split("T")[0];
-
-    if(!grouped[date]) grouped[date] = [];
-
-    let latLng;
-
-    if(v.visit.topCandidate.placeLocation.latitudeE7){
-      latLng = [
-        v.visit.topCandidate.placeLocation.latitudeE7 / 1e7,
-        v.visit.topCandidate.placeLocation.longitudeE7 / 1e7
-      ];
-    } else {
-      const geo = v.visit.topCandidate.placeLocation;
-      const parts = geo.replace("geo:","").split(",");
-      latLng = [parseFloat(parts[0]), parseFloat(parts[1])];
-    }
-
-    grouped[date].push({
-      start,
-      end,
-      latLng
-    });
-
-  });
-
-  const select = document.getElementById("daySelect");
-
-  Object.keys(grouped).sort().forEach(date=>{
-    const opt = document.createElement("option");
-    opt.value = date;
-    opt.text = date;
-    select.appendChild(opt);
-  });
-
-  select.onchange = function(){
-    currentStops = grouped[this.value];
-    currentIndex = 0;
-    showStop();
-  };
-
-  select.selectedIndex = 0;
-  currentStops = grouped[select.value];
-  showStop();
-}
-
-fetch("./location-history.json")
-.then(res => res.json())
-.then(data => loadData(data))
-.catch(() => alert("Error loading JSON file"));
+    sidebar.appendChild(div);
+});
 
 </script>
 
