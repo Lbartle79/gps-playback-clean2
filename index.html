@@ -175,18 +175,45 @@ function loadDay(day){
 }
 
 function showStop(){
-  const stop=currentStops[currentIndex];
+  const stop = currentStops[currentIndex];
   if(!stop) return;
 
   if(marker) map.removeLayer(marker);
 
-  marker=L.marker(stop.latLng,{icon:bigIcon}).addTo(map);
-  map.setView(stop.latLng,13);
+  marker = L.marker(stop.latLng, { icon: bigIcon }).addTo(map);
+  map.setView(stop.latLng, 17);
 
-  document.getElementById("info").innerHTML=
-    "<strong>Arrival:</strong> "+formatTime(stop.start)+"<br>"+
-    "<strong>Departure:</strong> "+formatTime(stop.end)+"<br>"+
-    "<strong>Duration:</strong> "+formatDuration(stop.start,stop.end);
+  document.getElementById("info").innerHTML = "Loading location name...";
+
+  fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${stop.latLng[0]}&lon=${stop.latLng[1]}`)
+  .then(res => res.json())
+  .then(place => {
+
+    const name =
+      place.name ||
+      (place.address && (
+        place.address.road ||
+        place.address.neighbourhood ||
+        place.address.hamlet ||
+        place.address.town ||
+        place.address.city
+      )) ||
+      place.display_name ||
+      "Unknown location";
+
+    document.getElementById("info").innerHTML =
+      "<strong>Location:</strong> " + name + "<br>" +
+      "<strong>Arrival:</strong> " + formatTime(stop.start) + "<br>" +
+      "<strong>Departure:</strong> " + formatTime(stop.end) + "<br>" +
+      "<strong>Duration:</strong> " + formatDuration(stop.start, stop.end);
+
+  })
+  .catch(() => {
+    document.getElementById("info").innerHTML =
+      "<strong>Arrival:</strong> " + formatTime(stop.start) + "<br>" +
+      "<strong>Departure:</strong> " + formatTime(stop.end) + "<br>" +
+      "<strong>Duration:</strong> " + formatDuration(stop.start, stop.end);
+  });
 }
 
 function nextStop(){
