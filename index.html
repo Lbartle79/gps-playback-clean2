@@ -1,146 +1,143 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8"/>
-<title>GPS Stop Map</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Full GPS Segment Viewer</title>
 
-<link
-  rel="stylesheet"
-  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 
 <style>
-body { margin:0; font-family: Arial, sans-serif; }
-
-#container {
-  display: flex;
-  height: 100vh;
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #f4f4f4;
 }
 
 #list {
-  width: 40%;
-  overflow-y: scroll;
-  padding: 20px;
-  background: #f4f4f4;
-  font-size: 18px;
-  line-height: 1.6;
+    height: 45vh;
+    overflow-y: scroll;
+    padding: 15px;
+    background: white;
 }
 
-.stop {
-  padding: 15px;
-  margin-bottom: 15px;
-  background: white;
-  border-radius: 8px;
-  cursor: pointer;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+.segment {
+    padding: 10px;
+    margin-bottom: 10px;
+    border-left: 5px solid #007bff;
+    background: #fafafa;
+    cursor: pointer;
 }
 
-.stop:hover { background: #e6f2ff; }
+.segment:hover {
+    background: #e6f0ff;
+}
+
+.segment h3 {
+    margin: 0 0 5px 0;
+    font-size: 16px;
+}
+
+.segment p {
+    margin: 3px 0;
+    font-size: 14px;
+}
 
 #map {
-  width: 60%;
-  height: 100%;
+    height: 55vh;
 }
 </style>
 </head>
 <body>
 
-<div id="container">
-  <div id="list"></div>
-  <div id="map"></div>
-</div>
+<div id="list"></div>
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
-const rawData = [
-/* PASTE YOUR ENTIRE location-history.json CONTENT HERE */
+
+// ======== PASTE YOUR RAW JSON DATA BELOW THIS LINE ========
+
+// Replace the empty array below with your FULL location-history.json content.
+// It must be an array of objects like the ones you showed earlier.
+
+const data = [
+    // PASTE YOUR FULL JSON FILE CONTENT HERE
 ];
-</script>
 
-<script>
+// ===========================================================
 
-// ===== PARSE VISITS FROM RAW DATA =====
+const listContainer = document.getElementById("list");
 
-function formatLocal(dateStr) {
-  return new Date(dateStr).toLocaleString();
+const map = L.map("map").setView([52.0, -104.0], 6);
+
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "© OpenStreetMap contributors"
+}).addTo(map);
+
+let markers = [];
+
+function formatDuration(start, end) {
+    const diff = (new Date(end) - new Date(start)) / 1000;
+    const minutes = Math.floor(diff / 60);
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+
+    if (hours > 0) {
+        return hours + " hr " + remainingMinutes + " min";
+    }
+    return minutes + " min";
 }
 
-function calculateDuration(start, end) {
-  const s = new Date(start);
-  const e = new Date(end);
-  const diff = (e - s) / 1000 / 60;
-  const h = Math.floor(diff / 60);
-  const m = Math.floor(diff % 60);
-  return h + "h " + m + "m";
-}
+data.forEach((entry, index) => {
 
-const stops = [];
+    if (!entry.activity || !entry.activity.start) return;
 
-rawData.forEach(entry => {
-  if (entry.visit && entry.visit.hierarchyLevel === "0") {
+    const geo = entry.activity.start.replace("geo:", "");
+    const parts = geo.split(",");
+    const lat = parseFloat(parts[0]);
+    const lng = parseFloat(parts[1]);
 
     const start = entry.startTime;
     const end = entry.endTime;
-    const geo = entry.visit.topCandidate.placeLocation;
 
-    if (geo && geo.startsWith("geo:")) {
-      const coords = geo.replace("geo:", "").split(",");
-      stops.push({
-        lat: parseFloat(coords[0]),
-        lng: parseFloat(coords[1]),
-        arrival: start,
-        departure: end,
-        duration: calculateDuration(start, end)
-      });
-    }
-  }
-});
+    const duration = formatDuration(start, end);
 
-// ===== BUILD MAP =====
+    const segmentDiv = document.createElement("div");
+    segmentDiv.className = "segment";
 
-const map = L.map('map').setView([53.2, -105.75], 10);
+    segmentDiv.innerHTML = `
+        <h3>Segment ${index + 1}</h3>
+        <p><strong>Arrival:</strong> ${new Date(start).toLocaleString()}</p>
+        <p><strong>Departure:</strong> ${new Date(end).toLocaleString()}</p>
+        <p><strong>Duration:</strong> ${duration}</p>
+        <p><strong>Coordinates:</strong> ${lat}, ${lng}</p>
+        <p><a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank">Open in Google Maps</a></p>
+    `;
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© OpenStreetMap contributors'
-}).addTo(map);
-
-let marker;
-
-const listDiv = document.getElementById('list');
-
-stops.forEach((stop, index) => {
-
-  const div = document.createElement('div');
-  div.className = 'stop';
-
-  div.innerHTML = `
-    <strong>Stop ${index+1}</strong><br>
-    Arrival: ${formatLocal(stop.arrival)}<br>
-    Departure: ${formatLocal(stop.departure)}<br>
-    Duration: ${stop.duration}<br>
-    Coordinates: ${stop.lat}, ${stop.lng}
-  `;
-
-  div.onclick = () => {
-
-    if (marker) map.removeLayer(marker);
-
-    marker = L.marker([stop.lat, stop.lng]).addTo(map);
-
+    const marker = L.marker([lat, lng]).addTo(map);
     marker.bindPopup(`
-      <strong>Stop ${index+1}</strong><br>
-      Arrival: ${formatLocal(stop.arrival)}<br>
-      Departure: ${formatLocal(stop.departure)}<br>
-      Duration: ${stop.duration}<br>
-      Coordinates: ${stop.lat}, ${stop.lng}
-    `).openPopup();
+        <strong>Segment ${index + 1}</strong><br>
+        Arrival: ${new Date(start).toLocaleString()}<br>
+        Departure: ${new Date(end).toLocaleString()}<br>
+        Duration: ${duration}<br>
+        ${lat}, ${lng}
+    `);
 
-    map.setView([stop.lat, stop.lng], 15);
-  };
+    segmentDiv.addEventListener("click", function() {
+        map.setView([lat, lng], 15);
+        marker.openPopup();
+    });
 
-  listDiv.appendChild(div);
+    listContainer.appendChild(segmentDiv);
+    markers.push(marker);
 });
+
+if (markers.length > 0) {
+    const group = L.featureGroup(markers);
+    map.fitBounds(group.getBounds());
+}
 
 </script>
 
