@@ -1,9 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
-
 <meta charset="utf-8">
-<title>GPS Stop Map</title>
+<title>GPS Stop Viewer</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
@@ -11,19 +10,31 @@
 
 body{
 margin:0;
-font-family:Arial;
+font-family:Arial, sans-serif;
 display:flex;
 height:100vh;
 }
 
+/* stop list panel */
+
 #list{
-width:380px;
+width:420px;
 overflow:auto;
 border-right:2px solid #ccc;
-padding:18px;
+padding:20px;
 font-size:26px;
-line-height:1.7;
+line-height:1.6;
+background:#ffffff;
 }
+
+/* map panel */
+
+#map{
+flex:1;
+height:100vh;
+}
+
+/* stop rows */
 
 .stop{
 padding:18px;
@@ -43,11 +54,8 @@ background:#f0f0f0;
 <body>
 
 <div id="list">
-
-<h3stops>
-
+<h2>Stops</h2>
 <div id="stopList"></div>
-
 </div>
 
 <div id="map"></div>
@@ -58,40 +66,30 @@ background:#f0f0f0;
 
 const map = L.map("map").setView([52.1,-104.5],8);
 
-  // Normal map
-const streets = L.tileLayer(
-"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-{
-maxZoom: 19,
-attribution: "© OpenStreetMap"
-}
-);
+/* satellite imagery */
 
-// Satellite imagery
 const satellite = L.tileLayer(
-"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+"https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
 {
-maxZoom: 19,
-attribution: "Tiles © Esri"
-}
-);
-
-// Add satellite as default
-satellite.addTo(map);
-
-// Layer switcher
-L.control.layers({
-"Satellite": satellite,
-"Map": streets
+maxZoom:19,
+attribution:"Tiles © Esri"
 }).addTo(map);
+
+/* town labels */
+
+const labels = L.tileLayer(
+"https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+{
+maxZoom:19
+}).addTo(map);
+
 let marker=null;
 
 function showStop(lat,lng,text){
 
 if(!marker){
 marker=L.marker([lat,lng]).addTo(map);
-}
-else{
+}else{
 marker.setLatLng([lat,lng]);
 }
 
@@ -109,7 +107,7 @@ const data = await response.json();
 
 const container=document.getElementById("stopList");
 
-let stopNumber=0;
+let count=0;
 
 data.forEach(segment=>{
 
@@ -137,10 +135,10 @@ const end=new Date(segment.endTime);
 
 const duration=Math.round((end-start)/60000);
 
-stopNumber++;
+count++;
 
 const text=
-"<b>Stop "+stopNumber+"</b><br>"+
+"<b>Stop "+count+"</b><br>"+
 "Arrival: "+start.toLocaleString()+"<br>"+
 "Departure: "+end.toLocaleString()+"<br>"+
 "Duration: "+duration+" minutes<br>"+
