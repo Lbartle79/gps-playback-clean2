@@ -27,8 +27,8 @@ border-bottom:2px solid #ccc;
 height:35vh;
 overflow:auto;
 padding:20px;
-font-size:28px;
-line-height:1.6;
+font-size:26px;
+line-height:1.5;
 background:white;
 }
 
@@ -37,7 +37,7 @@ height:65vh;
 }
 
 .stop{
-padding:16px;
+padding:14px;
 border-bottom:1px solid #ddd;
 cursor:pointer;
 }
@@ -47,15 +47,14 @@ background:#f0f0f0;
 }
 
 </style>
-
 </head>
 
 <body>
 
 <div id="controls">
 Date:
-<input type="date" id="dateInput" style="font-size:24px">
-<button onclick="loadStops()" style="font-size:24px">Load</button>
+<input type="date" id="dateInput" style="font-size:22px">
+<button onclick="loadStops()" style="font-size:22px">Load</button>
 </div>
 
 <div id="list">
@@ -70,26 +69,11 @@ Date:
 
 const map = L.map("map").setView([52,-105],7);
 
-const satellite = L.tileLayer(
+L.tileLayer(
 "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
 {
 maxZoom:19,
 attribution:"Tiles © Esri"
-}
-).addTo(map);
-
-const streets = L.tileLayer(
-"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-{
-maxZoom:19,
-attribution:"© OpenStreetMap"
-}
-);
-
-L.control.layers(
-{
-"Satellite": satellite,
-"Street Map": streets
 }
 ).addTo(map);
 
@@ -104,7 +88,6 @@ marker.setLatLng([lat,lng]);
 }
 
 marker.bindPopup(text).openPopup();
-
 map.setView([lat,lng],14);
 
 }
@@ -115,28 +98,7 @@ const h=Math.floor(minutes/60);
 const m=minutes%60;
 
 if(h===0) return m+" min";
-
 return h+" hr "+m+" min";
-
-}
-
-async function getAddress(lat,lng){
-
-try{
-
-const url="https://nominatim.openstreetmap.org/reverse?format=json&lat="+lat+"&lon="+lng;
-
-const r=await fetch(url);
-
-const d=await r.json();
-
-return d.display_name;
-
-}catch(e){
-
-return lat+", "+lng;
-
-}
 
 }
 
@@ -145,17 +107,17 @@ async function loadStops(){
 const selectedDate=document.getElementById("dateInput").value;
 
 if(!selectedDate){
-alert("Please select a date");
+alert("Select a date first");
 return;
 }
 
-const response=await fetch("location-history.json");
-
-const data=await response.json();
-
 const container=document.getElementById("stopList");
-
 container.innerHTML="Loading stops...";
+
+try{
+
+const response=await fetch("location-history.json");
+const data=await response.json();
 
 let stops=[];
 
@@ -163,32 +125,27 @@ data.forEach(segment=>{
 
 if(!segment.startTime) return;
 
-const localDate = new Date(start);
-const date = localDate.toISOString().split("T")[0];
-
-if(date!==selectedDate) return;
-
-let geo=null;
-
-if(segment.activity && segment.activity.start){
-geo=segment.activity.start;
-}
-
-if(!geo && segment.activity && segment.activity.end){
-geo=segment.activity.end;
-}
-
-if(!geo) return;
-
-geo=geo.replace("geo:","");
-
-const parts=geo.split(",");
-
-const lat=parseFloat(parts[0]);
-const lng=parseFloat(parts[1]);
-
 const start=new Date(segment.startTime);
 const end=new Date(segment.endTime);
+
+const localDate=start.toISOString().split("T")[0];
+
+if(localDate!==selectedDate) return;
+
+let lat=null;
+let lng=null;
+
+if(segment.timelinePath && segment.timelinePath.length>0){
+
+const point=segment.timelinePath[0].point.replace("geo:","");
+const parts=point.split(",");
+
+lat=parseFloat(parts[0]);
+lng=parseFloat(parts[1]);
+
+}
+
+if(lat===null) return;
 
 const duration=Math.round((end-start)/60000);
 
@@ -202,33 +159,34 @@ container.innerHTML="";
 
 let count=0;
 
-for(const s of stops){
+stops.forEach(s=>{
 
 count++;
-
-const address=await getAddress(s.lat,s.lng);
 
 const text=
 "<b>Stop "+count+"</b><br>"+
 "Arrival: "+s.start.toLocaleString()+"<br>"+
 "Departure: "+s.end.toLocaleString()+"<br>"+
-"Duration: "+formatDuration(s.duration)+"<br>"+
-"Location: "+address;
+"Duration: "+formatDuration(s.duration);
 
 const div=document.createElement("div");
-
 div.className="stop";
-
 div.innerHTML=text;
 
 div.onclick=()=>showStop(s.lat,s.lng,text);
 
 container.appendChild(div);
 
-}
+});
 
 if(stops.length===0){
 container.innerHTML="No stops for that date.";
+}
+
+}catch(e){
+
+container.innerHTML="Error loading data.";
+
 }
 
 }
