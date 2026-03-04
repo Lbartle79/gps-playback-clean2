@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>GPS Stop Viewer</title>
+<title>GPS Timeline Viewer</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
@@ -19,16 +19,15 @@ height:100vh;
 #controls{
 padding:15px;
 background:#f5f5f5;
-font-size:26px;
+font-size:24px;
 border-bottom:2px solid #ccc;
 }
 
 #list{
 height:35vh;
 overflow:auto;
-padding:20px;
-font-size:26px;
-line-height:1.5;
+padding:15px;
+font-size:22px;
 background:white;
 }
 
@@ -37,13 +36,13 @@ height:65vh;
 }
 
 .stop{
-padding:14px;
+padding:10px;
 border-bottom:1px solid #ddd;
 cursor:pointer;
 }
 
 .stop:hover{
-background:#f0f0f0;
+background:#eee;
 }
 
 </style>
@@ -53,12 +52,12 @@ background:#f0f0f0;
 
 <div id="controls">
 Date:
-<input type="date" id="dateInput" style="font-size:22px">
-<button onclick="loadStops()" style="font-size:22px">Load</button>
+<input type="date" id="dateInput" style="font-size:20px">
+<button onclick="loadData()" style="font-size:20px">Load</button>
 </div>
 
 <div id="list">
-<div id="stopList">Select a date and press Load</div>
+<div id="stopList">Choose a date and press Load</div>
 </div>
 
 <div id="map"></div>
@@ -73,13 +72,13 @@ L.tileLayer(
 "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
 {
 maxZoom:19,
-attribution:"Tiles © Esri"
+attribution:"Satellite © Esri"
 }
 ).addTo(map);
 
 let marker=null;
 
-function showStop(lat,lng,text){
+function showPoint(lat,lng,text){
 
 if(!marker){
 marker=L.marker([lat,lng]).addTo(map);
@@ -88,21 +87,12 @@ marker.setLatLng([lat,lng]);
 }
 
 marker.bindPopup(text).openPopup();
+
 map.setView([lat,lng],14);
 
 }
 
-function formatDuration(minutes){
-
-const h=Math.floor(minutes/60);
-const m=minutes%60;
-
-if(h===0) return m+" min";
-return h+" hr "+m+" min";
-
-}
-
-async function loadStops(){
+function loadData(){
 
 const selectedDate=document.getElementById("dateInput").value;
 
@@ -112,86 +102,62 @@ return;
 }
 
 const container=document.getElementById("stopList");
-container.innerHTML="Loading stops...";
+container.innerHTML="Loading data...";
 
-try{
+fetch("location-history.json")
+.then(r=>r.json())
+.then(data=>{
 
-const response=await fetch("location-history.json");
-const data=await response.json();
+let count=0;
 
-let stops=[];
+container.innerHTML="";
 
 data.forEach(segment=>{
 
 if(!segment.startTime) return;
 
-const start=new Date(segment.startTime);
-const end=new Date(segment.endTime);
+const date=new Date(segment.startTime).toISOString().split("T")[0];
 
-const localDate=start.toISOString().split("T")[0];
+if(date!==selectedDate) return;
 
-if(localDate!==selectedDate) return;
+if(!segment.timelinePath) return;
 
-let lat=null;
-let lng=null;
+segment.timelinePath.forEach(point=>{
 
-if(segment.timelinePath && segment.timelinePath.length>0){
+const coords=point.point.replace("geo:","").split(",");
 
-const point=segment.timelinePath[0].point.replace("geo:","");
-const parts=point.split(",");
-
-lat=parseFloat(parts[0]);
-lng=parseFloat(parts[1]);
-
-}
-
-if(lat===null) return;
-
-const duration=Math.round((end-start)/60000);
-
-stops.push({
-lat,lng,start,end,duration
-});
-
-});
-
-container.innerHTML="";
-
-let count=0;
-
-stops.forEach(s=>{
+const lat=parseFloat(coords[0]);
+const lng=parseFloat(coords[1]);
 
 count++;
 
 const text=
-"<b>Stop "+count+"</b><br>"+
-"Arrival: "+s.start.toLocaleString()+"<br>"+
-"Departure: "+s.end.toLocaleString()+"<br>"+
-"Duration: "+formatDuration(s.duration);
+"<b>Point "+count+"</b><br>"+
+"Lat: "+lat+"<br>"+
+"Lng: "+lng+"<br>"+
+"Time: "+segment.startTime;
 
 const div=document.createElement("div");
+
 div.className="stop";
 div.innerHTML=text;
 
-div.onclick=()=>showStop(s.lat,s.lng,text);
+div.onclick=()=>showPoint(lat,lng,text);
 
 container.appendChild(div);
 
 });
 
-if(stops.length===0){
-container.innerHTML="No stops for that date.";
+});
+
+if(count===0){
+container.innerHTML="No data for that date.";
 }
 
-}catch(e){
-
-container.innerHTML="Error loading data.";
-
-}
+});
 
 }
 
 </script>
-
 </body>
 </html>
