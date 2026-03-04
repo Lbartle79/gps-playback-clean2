@@ -1,162 +1,134 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>GPS Segment Viewer</title>
+<meta charset="utf-8">
+<title>GPS Stop Map</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
 <style>
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  background: #f4f4f4;
+
+body{
+margin:0;
+font-family:Arial;
+display:flex;
+height:100vh;
 }
 
-#list {
-  height: 45vh;
-  overflow-y: scroll;
-  padding: 15px;
-  background: white;
+#list{
+width:420px;
+overflow:auto;
+border-right:2px solid #ccc;
+padding:15px;
+font-size:16px;
 }
 
-.segment {
-  padding: 10px;
-  margin-bottom: 10px;
-  border-left: 5px solid #007bff;
-  background: #fafafa;
-  cursor: pointer;
+#map{
+flex:1;
 }
 
-.segment:hover {
-  background: #e6f0ff;
+.stop{
+padding:10px;
+border-bottom:1px solid #ddd;
+cursor:pointer;
 }
 
-.segment h3 {
-  margin: 0 0 5px 0;
-  font-size: 16px;
+.stop:hover{
+background:#f0f0f0;
 }
 
-.segment p {
-  margin: 3px 0;
-  font-size: 14px;
+h2{
+margin-top:0;
 }
 
-#map {
-  height: 55vh;
-}
 </style>
+
 </head>
+
 <body>
 
-<div id="list">Loading data...</div>
+<div id="list">
+<h2>Stops</h2>
+<div id="stopList"></div>
+</div>
+
 <div id="map"></div>
 
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
 
-const listContainer = document.getElementById("list");
-
-const map = L.map("map").setView([52.0, -104.0], 6);
-
-const streets = L.tileLayer(
-  "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-  { attribution: "© OpenStreetMap contributors" }
-);
+const map = L.map('map').setView([52.1,-104.5],8);
 
 const satellite = L.tileLayer(
-  "https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
-  { attribution: "© OpenStreetMap contributors" }
-);
-
-streets.addTo(map);
-
-L.control.layers(
-  { "Streets": streets, "Satellite Style": satellite }
+'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+{ attribution:'Tiles © Esri' }
 ).addTo(map);
 
-function formatDuration(start, end) {
-  const diff = (new Date(end) - new Date(start)) / 1000;
-  const minutes = Math.floor(diff / 60);
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
+const labels = L.tileLayer(
+'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'
+).addTo(map);
 
-  if (hours > 0) {
-    return hours + " hr " + remainingMinutes + " min";
-  }
-  return minutes + " min";
+let marker=null;
+
+function showStop(lat,lng,text){
+
+if(!marker){
+marker=L.marker([lat,lng]).addTo(map);
+}else{
+marker.setLatLng([lat,lng]);
 }
 
-fetch("location-history.json?v=" + new Date().getTime())
-  .then(response => response.json())
-  .then(data => {
+marker.bindPopup(text).openPopup();
 
-    listContainer.innerHTML = "";
-    let markers = [];
+map.setView([lat,lng],13);
 
-    data.forEach((entry, index) => {
+}
 
-      const startGeo = entry.activity?.start?.replace("geo:", "");
-      const endGeo = entry.activity?.end?.replace("geo:", "");
+async function loadData(){
 
-      const startTime = entry.startTime;
-      const endTime = entry.endTime;
-      const duration = formatDuration(startTime, endTime);
+const response = await fetch("location-history.json");
+const data = await response.json();
 
-      function addPoint(label, geoString) {
-        if (!geoString) return;
+const container = document.getElementById("stopList");
 
-        const parts = geoString.split(",");
-        const lat = parseFloat(parts[0]);
-        const lng = parseFloat(parts[1]);
+data.timelineObjects.forEach((obj,i)=>{
 
-        const segmentDiv = document.createElement("div");
-        segmentDiv.className = "segment";
+if(obj.placeVisit){
 
-        segmentDiv.innerHTML = `
-          <h3>Segment ${index + 1} - ${label}</h3>
-          <p><strong>Arrival:</strong> ${new Date(startTime).toLocaleString()}</p>
-          <p><strong>Departure:</strong> ${new Date(endTime).toLocaleString()}</p>
-          <p><strong>Duration:</strong> ${duration}</p>
-          <p><strong>Coordinates:</strong> ${lat}, ${lng}</p>
-          <p><a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank">Open in Google Maps</a></p>
-        `;
+const loc=obj.placeVisit.location;
 
-        const marker = L.marker([lat, lng]).addTo(map);
-        marker.bindPopup(`
-          <strong>Segment ${index + 1} - ${label}</strong><br>
-          Arrival: ${new Date(startTime).toLocaleString()}<br>
-          Departure: ${new Date(endTime).toLocaleString()}<br>
-          Duration: ${duration}<br>
-          ${lat}, ${lng}
-        `);
+const lat=loc.latitudeE7/10000000;
+const lng=loc.longitudeE7/10000000;
 
-        segmentDiv.addEventListener("click", function() {
-          map.setView([lat, lng], 15);
-          marker.openPopup();
-        });
+const start=new Date(obj.placeVisit.duration.startTimestamp);
+const end=new Date(obj.placeVisit.duration.endTimestamp);
 
-        listContainer.appendChild(segmentDiv);
-        markers.push(marker);
-      }
+const duration=Math.round((end-start)/60000);
 
-      addPoint("Start", startGeo);
-      addPoint("End", endGeo);
+const div=document.createElement("div");
+div.className="stop";
 
-    });
+const text=
+"Arrival: "+start.toLocaleString()+
+"<br>Departure: "+end.toLocaleString()+
+"<br>Duration: "+duration+" minutes"+
+"<br>Lat: "+lat+
+"<br>Lng: "+lng;
 
-    if (markers.length > 0) {
-      const group = L.featureGroup(markers);
-      map.fitBounds(group.getBounds());
-    }
+div.innerHTML=text;
 
-  })
-  .catch(error => {
-    listContainer.innerHTML = "Error loading location-history.json";
-    console.error(error);
-  });
+div.onclick=()=>showStop(lat,lng,text);
+
+container.appendChild(div);
+
+}
+
+});
+
+}
+
+loadData();
 
 </script>
 
