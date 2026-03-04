@@ -2,277 +2,138 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>GPS Stop Viewer</title>
+<title>GPS Timeline Viewer</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
 <style>
 
 body{
+font-family: Arial;
 margin:0;
-font-family:Arial;
-}
-
-#map{
-height:55vh;
+display:flex;
+height:100vh;
 }
 
 #list{
-height:45vh;
+width:420px;
 overflow:auto;
+border-right:1px solid #ccc;
 padding:15px;
-font-size:22px;
-background:white;
+font-size:18px;
 }
 
-.stop{
-padding:14px;
-border-bottom:1px solid #ccc;
+.segment{
+padding:10px;
+margin-bottom:8px;
+border:1px solid #ccc;
 cursor:pointer;
 }
 
-.stop:hover{
+.segment:hover{
 background:#eee;
 }
 
-</style>
+#map{
+flex:1;
+}
 
+</style>
 </head>
 
 <body>
 
+<div id="list">Loading data...</div>
 <div id="map"></div>
-<div id="list">Loading stops…</div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
 
-const street = L.tileLayer(
+const map = L.map('map').setView([53,-105],6);
+
+L.tileLayer(
 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-{ maxZoom:22 }
-);
-
-const satellite = L.tileLayer(
-'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-{ maxZoom:19 }
-);
-
-const map = L.map('map', {
-center:[52,-105],
-zoom:6,
-layers:[street]
-});
-
-L.control.layers(
-{
-"Street Map":street,
-"Satellite":satellite
-}
+{maxZoom:19}
 ).addTo(map);
 
 let marker;
+let line;
 
-function showMarker(lat,lng,text){
+fetch("location-history.json")
+.then(r=>r.json())
+.then(data=>{
 
-if(!marker){
-marker=L.marker([lat,lng]).addTo(map);
-}else{
-marker.setLatLng([lat,lng]);
-}
+const segments = data.timelineObjects;
 
-marker.bindPopup(text).openPopup();
-map.setView([lat,lng],15);
-
-}
-
-function distanceMeters(a,b){
-
-const R=6371000;
-
-let lat1=a.lat*Math.PI/180;
-let lat2=b.lat*Math.PI/180;
-
-let dlat=lat2-lat1;
-let dlng=(b.lng-a.lng)*Math.PI/180;
-
-let x=
-Math.sin(dlat/2)*Math.sin(dlat/2)+
-Math.cos(lat1)*Math.cos(lat2)*
-Math.sin(dlng/2)*Math.sin(dlng/2);
-
-return 2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
-
-}
-
-function formatDate(t){
-
-let d=new Date(t);
-
-return d.toLocaleDateString([],{
-year:"numeric",
-month:"long",
-day:"numeric"
-});
-
-}
-
-function formatTime(t){
-
-let d=new Date(t);
-
-return d.toLocaleTimeString([],{
-hour:"2-digit",
-minute:"2-digit",
-second:"2-digit"
-});
-
-}
-
-function duration(a,b){
-
-let s=Math.floor((b-a)/1000);
-
-let h=Math.floor(s/3600);
-let m=Math.floor((s%3600)/60);
-let sec=s%60;
-
-let t="";
-
-if(h>0)t+=h+"h ";
-if(m>0)t+=m+"m ";
-
-t+=sec+"s";
-
-return t;
-
-}
-
-async function reverseAddress(lat,lng){
-
-try{
-
-let r=await fetch(
-"https://nominatim.openstreetmap.org/reverse?format=json&lat="+lat+"&lon="+lng
-);
-
-let j=await r.json();
-
-return j.display_name;
-
-}catch{
-
-return lat.toFixed(5)+", "+lng.toFixed(5);
-
-}
-
-}
-
-async function run(){
-
-const r=await fetch("location-history.json");
-const data=await r.json();
-
-let points=[];
-
-for(const seg of data){
-
-if(!seg.timelinePath)continue;
-
-let start=new Date(seg.startTime).getTime();
-
-for(const p of seg.timelinePath){
-
-let off=parseInt(p.durationMinutesOffsetFromStartTime||0);
-
-let t=start+off*60000;
-
-let c=p.point.replace("geo:","").split(",");
-
-points.push({
-lat:parseFloat(c[0]),
-lng:parseFloat(c[1]),
-time:t
-});
-
-}
-
-}
-
-points.sort((a,b)=>a.time-b.time);
-
-let stops=[];
-
-let cur=null;
-
-for(const p of points){
-
-if(!cur){
-
-cur={
-lat:p.lat,
-lng:p.lng,
-start:p.time,
-end:p.time
-};
-
-continue;
-
-}
-
-let dist=distanceMeters(cur,p);
-
-if(dist<=10){
-
-cur.end=p.time;
-
-}else{
-
-if((cur.end-cur.start)>=10000){
-stops.push(cur);
-}
-
-cur={
-lat:p.lat,
-lng:p.lng,
-start:p.time,
-end:p.time
-};
-
-}
-
-}
-
-const list=document.getElementById("list");
-
+const list = document.getElementById("list");
 list.innerHTML="";
 
-for(const s of stops){
+segments.forEach((s,i)=>{
 
-let addr=await reverseAddress(s.lat,s.lng);
+let start,end,startLat,startLng,endLat,endLng;
 
-let txt=
-"<b>"+addr+"</b><br>"+
-"Arrival: "+formatDate(s.start)+" "+formatTime(s.start)+"<br>"+
-"Departure: "+formatDate(s.end)+" "+formatTime(s.end)+"<br>"+
-"Duration: "+duration(s.start,s.end);
+if(s.activitySegment){
 
-let div=document.createElement("div");
+start = new Date(s.activitySegment.duration.startTimestamp);
+end = new Date(s.activitySegment.duration.endTimestamp);
 
-div.className="stop";
-div.innerHTML=txt;
+startLat = s.activitySegment.startLocation.latitudeE7/1e7;
+startLng = s.activitySegment.startLocation.longitudeE7/1e7;
+
+endLat = s.activitySegment.endLocation.latitudeE7/1e7;
+endLng = s.activitySegment.endLocation.longitudeE7/1e7;
+
+}else if(s.placeVisit){
+
+start = new Date(s.placeVisit.duration.startTimestamp);
+end = new Date(s.placeVisit.duration.endTimestamp);
+
+startLat = s.placeVisit.location.latitudeE7/1e7;
+startLng = s.placeVisit.location.longitudeE7/1e7;
+
+endLat = startLat;
+endLng = startLng;
+
+}else{
+return;
+}
+
+const dur = Math.round((end-start)/60000);
+
+const div = document.createElement("div");
+div.className="segment";
+
+div.innerHTML = `
+<b>${start.toLocaleDateString()}</b><br>
+Start: ${start.toLocaleTimeString()}<br>
+End: ${end.toLocaleTimeString()}<br>
+Duration: ${dur} minutes<br>
+Start: ${startLat.toFixed(5)}, ${startLng.toFixed(5)}<br>
+End: ${endLat.toFixed(5)}, ${endLng.toFixed(5)}
+`;
 
 div.onclick=()=>{
-showMarker(s.lat,s.lng,txt);
+
+if(marker) map.removeLayer(marker);
+if(line) map.removeLayer(line);
+
+marker = L.marker([startLat,startLng]).addTo(map);
+
+line = L.polyline([
+[startLat,startLng],
+[endLat,endLng]
+],{color:"red"}).addTo(map);
+
+map.setView([startLat,startLng],15);
+
 };
 
 list.appendChild(div);
 
-}
+});
 
-}
-
-run();
+});
 
 </script>
 
