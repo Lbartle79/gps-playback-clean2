@@ -48,11 +48,27 @@ background:#eee;
 
 <script>
 
-const map=L.map('map').setView([52,-105],6);
+const street = L.tileLayer(
+'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+{ maxZoom:22 }
+);
 
-L.tileLayer(
+const satellite = L.tileLayer(
 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-{maxZoom:19}
+{ maxZoom:19 }
+);
+
+const map = L.map('map', {
+center:[52,-105],
+zoom:6,
+layers:[street]
+});
+
+L.control.layers(
+{
+"Street Map":street,
+"Satellite":satellite
+}
 ).addTo(map);
 
 let marker;
