@@ -82,12 +82,34 @@ Load
 
 const map = L.map("map").setView([52,-105],7);
 
-L.tileLayer(
+// Satellite imagery
+const satellite = L.tileLayer(
+"https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+{
+maxZoom:19,
+attribution:"Tiles © Esri"
+}
+);
+
+// Regular map
+const streets = L.tileLayer(
 "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
 {
 maxZoom:19,
 attribution:"© OpenStreetMap"
-}).addTo(map);
+}
+);
+
+// Start with satellite
+satellite.addTo(map);
+
+// Layer toggle
+L.control.layers(
+{
+"Satellite": satellite,
+"Map": streets
+}
+).addTo(map);
 
 let marker=null;
 
