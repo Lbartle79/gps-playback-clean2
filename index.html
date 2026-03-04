@@ -69,18 +69,17 @@ const labels = L.tileLayer(
 'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'
 ).addTo(map);
 
-let marker=null;
+let marker = null;
 
 function showStop(lat,lng,text){
 
 if(!marker){
-marker=L.marker([lat,lng]).addTo(map);
+marker = L.marker([lat,lng]).addTo(map);
 }else{
 marker.setLatLng([lat,lng]);
 }
 
 marker.bindPopup(text).openPopup();
-
 map.setView([lat,lng],13);
 
 }
@@ -92,29 +91,35 @@ const data = await response.json();
 
 const container = document.getElementById("stopList");
 
-data.timelineObjects.forEach((obj,i)=>{
+data.forEach((segment,i)=>{
 
-if(obj.placeVisit){
+if(!segment.activity) return;
 
-const loc=obj.placeVisit.location;
+const startGeo = segment.activity.start?.replace("geo:","");
+const endGeo = segment.activity.end?.replace("geo:","");
 
-const lat=loc.latitudeE7/10000000;
-const lng=loc.longitudeE7/10000000;
+const startTime = new Date(segment.startTime);
+const endTime = new Date(segment.endTime);
 
-const start=new Date(obj.placeVisit.duration.startTimestamp);
-const end=new Date(obj.placeVisit.duration.endTimestamp);
+const duration = Math.round((endTime-startTime)/60000);
 
-const duration=Math.round((end-start)/60000);
+function createStop(label,geo){
 
-const div=document.createElement("div");
+if(!geo) return;
+
+const parts = geo.split(",");
+const lat = parseFloat(parts[0]);
+const lng = parseFloat(parts[1]);
+
+const div = document.createElement("div");
 div.className="stop";
 
-const text=
-"Arrival: "+start.toLocaleString()+
-"<br>Departure: "+end.toLocaleString()+
-"<br>Duration: "+duration+" minutes"+
-"<br>Lat: "+lat+
-"<br>Lng: "+lng;
+const text =
+"<b>Segment "+(i+1)+" "+label+"</b><br>"+
+"Arrival: "+startTime.toLocaleString()+"<br>"+
+"Departure: "+endTime.toLocaleString()+"<br>"+
+"Duration: "+duration+" minutes<br>"+
+lat+", "+lng;
 
 div.innerHTML=text;
 
@@ -123,6 +128,9 @@ div.onclick=()=>showStop(lat,lng,text);
 container.appendChild(div);
 
 }
+
+createStop("Start",startGeo);
+createStop("End",endGeo);
 
 });
 
