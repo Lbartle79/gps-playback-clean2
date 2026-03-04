@@ -9,8 +9,8 @@
 <style>
 
 body{
-font-family: Arial;
 margin:0;
+font-family:Arial;
 display:flex;
 height:100vh;
 }
@@ -19,14 +19,14 @@ height:100vh;
 width:420px;
 overflow:auto;
 border-right:1px solid #ccc;
-padding:15px;
+padding:12px;
 font-size:18px;
 }
 
 .segment{
-padding:10px;
-margin-bottom:8px;
 border:1px solid #ccc;
+margin-bottom:8px;
+padding:10px;
 cursor:pointer;
 }
 
@@ -43,14 +43,14 @@ flex:1;
 
 <body>
 
-<div id="list">Loading data...</div>
+<div id="list">Loading timeline…</div>
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
 
-const map = L.map('map').setView([53,-105],6);
+const map=L.map('map').setView([52,-105],6);
 
 L.tileLayer(
 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -64,47 +64,29 @@ fetch("location-history.json")
 .then(r=>r.json())
 .then(data=>{
 
-const segments = data;
-
-const list = document.getElementById("list");
+const list=document.getElementById("list");
 list.innerHTML="";
 
-segments.forEach((s,i)=>{
+data.forEach(seg=>{
 
-let start,end,startLat,startLng,endLat,endLng;
+const start=new Date(seg.startTime);
+const end=new Date(seg.endTime);
 
-if(s.activitySegment){
+const startCoords=seg.activity.start.replace("geo:","").split(",");
+const endCoords=seg.activity.end.replace("geo:","").split(",");
 
-start = new Date(s.activitySegment.duration.startTimestamp);
-end = new Date(s.activitySegment.duration.endTimestamp);
+const startLat=parseFloat(startCoords[0]);
+const startLng=parseFloat(startCoords[1]);
 
-startLat = s.activitySegment.startLocation.latitudeE7/1e7;
-startLng = s.activitySegment.startLocation.longitudeE7/1e7;
+const endLat=parseFloat(endCoords[0]);
+const endLng=parseFloat(endCoords[1]);
 
-endLat = s.activitySegment.endLocation.latitudeE7/1e7;
-endLng = s.activitySegment.endLocation.longitudeE7/1e7;
+const dur=Math.round((end-start)/60000);
 
-}else if(s.placeVisit){
-
-start = new Date(s.placeVisit.duration.startTimestamp);
-end = new Date(s.placeVisit.duration.endTimestamp);
-
-startLat = s.placeVisit.location.latitudeE7/1e7;
-startLng = s.placeVisit.location.longitudeE7/1e7;
-
-endLat = startLat;
-endLng = startLng;
-
-}else{
-return;
-}
-
-const dur = Math.round((end-start)/60000);
-
-const div = document.createElement("div");
+const div=document.createElement("div");
 div.className="segment";
 
-div.innerHTML = `
+div.innerHTML=`
 <b>${start.toLocaleDateString()}</b><br>
 Start: ${start.toLocaleTimeString()}<br>
 End: ${end.toLocaleTimeString()}<br>
@@ -115,15 +97,15 @@ End: ${endLat.toFixed(5)}, ${endLng.toFixed(5)}
 
 div.onclick=()=>{
 
-if(marker) map.removeLayer(marker);
-if(line) map.removeLayer(line);
+if(marker)map.removeLayer(marker);
+if(line)map.removeLayer(line);
 
-marker = L.marker([startLat,startLng]).addTo(map);
+marker=L.marker([startLat,startLng]).addTo(map);
 
-line = L.polyline([
-[startLat,startLng],
-[endLat,endLng]
-],{color:"red"}).addTo(map);
+line=L.polyline(
+[[startLat,startLng],[endLat,endLng]],
+{color:"red"}
+).addTo(map);
 
 map.setView([startLat,startLng],15);
 
