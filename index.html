@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>GPS Stop Viewer</title>
+<title>GPS Stops</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
@@ -10,28 +10,28 @@
 
 body{
 margin:0;
-font-family:Arial, sans-serif;
+font-family:Arial;
 display:flex;
+flex-direction:column;
 height:100vh;
 }
 
-/* stop list panel */
+/* stop list */
 
 #list{
-width:420px;
+height:35vh;
 overflow:auto;
-border-right:2px solid #ccc;
 padding:20px;
-font-size:26px;
+font-size:30px;
 line-height:1.6;
 background:#ffffff;
+border-bottom:2px solid #ccc;
 }
 
-/* map panel */
+/* map area */
 
 #map{
-flex:1;
-height:100vh;
+height:65vh;
 }
 
 /* stop rows */
@@ -40,7 +40,7 @@ height:100vh;
 padding:18px;
 border-bottom:1px solid #ddd;
 cursor:pointer;
-font-size:26px;
+font-size:30px;
 }
 
 .stop:hover{
@@ -54,7 +54,7 @@ background:#f0f0f0;
 <body>
 
 <div id="list">
-<h2>Stops</h2>
+<b>Stops</b>
 <div id="stopList"></div>
 </div>
 
@@ -64,23 +64,15 @@ background:#f0f0f0;
 
 <script>
 
-const map = L.map("map").setView([52.1,-104.5],8);
+const map = L.map("map").setView([52,-105],7);
 
-/* satellite imagery */
+/* stable map tiles */
 
-const satellite = L.tileLayer(
-"https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+L.tileLayer(
+"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
 {
 maxZoom:19,
-attribution:"Tiles © Esri"
-}).addTo(map);
-
-/* town labels */
-
-const labels = L.tileLayer(
-"https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
-{
-maxZoom:19
+attribution:"© OpenStreetMap"
 }).addTo(map);
 
 let marker=null;
@@ -138,11 +130,10 @@ const duration=Math.round((end-start)/60000);
 count++;
 
 const text=
-"<b>Stop "+count+"</b><br>"+
+"Stop "+count+"<br>"+
 "Arrival: "+start.toLocaleString()+"<br>"+
 "Departure: "+end.toLocaleString()+"<br>"+
-"Duration: "+duration+" minutes<br>"+
-lat+", "+lng;
+"Duration: "+duration+" minutes";
 
 const div=document.createElement("div");
 
