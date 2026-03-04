@@ -7,36 +7,34 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
 <style>
+
 body{
 margin:0;
 font-family:Arial;
-display:flex;
-flex-direction:column;
-height:100vh;
 }
 
 #map{
-height:60vh;
+height:55vh;
 }
 
 #list{
-height:40vh;
+height:45vh;
 overflow:auto;
+padding:15px;
 font-size:22px;
-padding:10px;
 background:white;
-border-top:2px solid #ccc;
 }
 
 .stop{
-padding:10px;
-border-bottom:1px solid #ddd;
+padding:14px;
+border-bottom:1px solid #ccc;
 cursor:pointer;
 }
 
 .stop:hover{
-background:#f0f0f0;
+background:#eee;
 }
+
 </style>
 
 </head>
@@ -44,23 +42,20 @@ background:#f0f0f0;
 <body>
 
 <div id="map"></div>
-<div id="list">Loading stops...</div>
+<div id="list">Loading stops…</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
 
-const map = L.map('map').setView([52,-105],7);
+const map=L.map('map').setView([52,-105],6);
 
 L.tileLayer(
 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-{
-maxZoom:19,
-attribution:'Satellite © Esri'
-}
+{maxZoom:19}
 ).addTo(map);
 
-let marker=null;
+let marker;
 
 function showMarker(lat,lng,text){
 
@@ -71,81 +66,189 @@ marker.setLatLng([lat,lng]);
 }
 
 marker.bindPopup(text).openPopup();
+map.setView([lat,lng],15);
 
-map.setView([lat,lng],14);
 }
 
-function duration(start,end){
+function distanceMeters(a,b){
 
-let ms=end-start;
+const R=6371000;
 
-let mins=Math.floor(ms/60000);
+let lat1=a.lat*Math.PI/180;
+let lat2=b.lat*Math.PI/180;
 
-let h=Math.floor(mins/60);
-let m=mins%60;
+let dlat=lat2-lat1;
+let dlng=(b.lng-a.lng)*Math.PI/180;
 
-if(h===0) return m+" min";
+let x=
+Math.sin(dlat/2)*Math.sin(dlat/2)+
+Math.cos(lat1)*Math.cos(lat2)*
+Math.sin(dlng/2)*Math.sin(dlng/2);
 
-return h+" hr "+m+" min";
+return 2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+
+}
+
+function formatDate(t){
+
+let d=new Date(t);
+
+return d.toLocaleDateString([],{
+year:"numeric",
+month:"long",
+day:"numeric"
+});
+
+}
+
+function formatTime(t){
+
+let d=new Date(t);
+
+return d.toLocaleTimeString([],{
+hour:"2-digit",
+minute:"2-digit",
+second:"2-digit"
+});
+
+}
+
+function duration(a,b){
+
+let s=Math.floor((b-a)/1000);
+
+let h=Math.floor(s/3600);
+let m=Math.floor((s%3600)/60);
+let sec=s%60;
+
+let t="";
+
+if(h>0)t+=h+"h ";
+if(m>0)t+=m+"m ";
+
+t+=sec+"s";
+
+return t;
+
 }
 
 async function reverseAddress(lat,lng){
 
 try{
 
-const r=await fetch(
+let r=await fetch(
 "https://nominatim.openstreetmap.org/reverse?format=json&lat="+lat+"&lon="+lng
 );
 
-const j=await r.json();
+let j=await r.json();
 
 return j.display_name;
 
 }catch{
 
-return lat+", "+lng;
+return lat.toFixed(5)+", "+lng.toFixed(5);
 
 }
 
 }
 
-async function loadStops(){
+async function run(){
 
-const res=await fetch("location-history.json");
+const r=await fetch("location-history.json");
+const data=await r.json();
 
-const data=await res.json();
+let points=[];
+
+for(const seg of data){
+
+if(!seg.timelinePath)continue;
+
+let start=new Date(seg.startTime).getTime();
+
+for(const p of seg.timelinePath){
+
+let off=parseInt(p.durationMinutesOffsetFromStartTime||0);
+
+let t=start+off*60000;
+
+let c=p.point.replace("geo:","").split(",");
+
+points.push({
+lat:parseFloat(c[0]),
+lng:parseFloat(c[1]),
+time:t
+});
+
+}
+
+}
+
+points.sort((a,b)=>a.time-b.time);
+
+let stops=[];
+
+let cur=null;
+
+for(const p of points){
+
+if(!cur){
+
+cur={
+lat:p.lat,
+lng:p.lng,
+start:p.time,
+end:p.time
+};
+
+continue;
+
+}
+
+let dist=distanceMeters(cur,p);
+
+if(dist<=10){
+
+cur.end=p.time;
+
+}else{
+
+if((cur.end-cur.start)>=10000){
+stops.push(cur);
+}
+
+cur={
+lat:p.lat,
+lng:p.lng,
+start:p.time,
+end:p.time
+};
+
+}
+
+}
 
 const list=document.getElementById("list");
 
 list.innerHTML="";
 
-for(const seg of data){
+for(const s of stops){
 
-if(!seg.timelinePath || seg.timelinePath.length===0) continue;
+let addr=await reverseAddress(s.lat,s.lng);
 
-const coords=seg.timelinePath[0].point.replace("geo:","").split(",");
+let txt=
+"<b>"+addr+"</b><br>"+
+"Arrival: "+formatDate(s.start)+" "+formatTime(s.start)+"<br>"+
+"Departure: "+formatDate(s.end)+" "+formatTime(s.end)+"<br>"+
+"Duration: "+duration(s.start,s.end);
 
-const lat=parseFloat(coords[0]);
-const lng=parseFloat(coords[1]);
-
-const start=new Date(seg.startTime);
-const end=new Date(seg.endTime);
-
-const address=await reverseAddress(lat,lng);
-
-const text=
-"<b>"+address+"</b><br>"+
-"Arrival: "+start.toLocaleString()+"<br>"+
-"Departure: "+end.toLocaleString()+"<br>"+
-"Duration: "+duration(start,end);
-
-const div=document.createElement("div");
+let div=document.createElement("div");
 
 div.className="stop";
+div.innerHTML=txt;
 
-div.innerHTML=text;
-
-div.onclick=()=>showMarker(lat,lng,text);
+div.onclick=()=>{
+showMarker(s.lat,s.lng,txt);
+};
 
 list.appendChild(div);
 
@@ -153,7 +256,7 @@ list.appendChild(div);
 
 }
 
-loadStops();
+run();
 
 </script>
 
