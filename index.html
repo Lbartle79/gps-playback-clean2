@@ -163,7 +163,8 @@ data.forEach(segment=>{
 
 if(!segment.startTime) return;
 
-const date=segment.startTime.substring(0,10);
+const localDate = new Date(start);
+const date = localDate.toISOString().split("T")[0];
 
 if(date!==selectedDate) return;
 
