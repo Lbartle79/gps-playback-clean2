@@ -2,12 +2,11 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>GPS Timeline Viewer</title>
+<title>GPS Stop Viewer</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
 <style>
-
 body{
 margin:0;
 font-family:Arial;
@@ -16,23 +15,17 @@ flex-direction:column;
 height:100vh;
 }
 
-#controls{
-padding:15px;
-background:#f5f5f5;
-font-size:24px;
-border-bottom:2px solid #ccc;
+#map{
+height:60vh;
 }
 
 #list{
-height:35vh;
+height:40vh;
 overflow:auto;
-padding:15px;
 font-size:22px;
+padding:10px;
 background:white;
-}
-
-#map{
-height:65vh;
+border-top:2px solid #ccc;
 }
 
 .stop{
@@ -42,43 +35,34 @@ cursor:pointer;
 }
 
 .stop:hover{
-background:#eee;
+background:#f0f0f0;
 }
-
 </style>
+
 </head>
 
 <body>
 
-<div id="controls">
-Date:
-<input type="date" id="dateInput" style="font-size:20px">
-<button onclick="loadData()" style="font-size:20px">Load</button>
-</div>
-
-<div id="list">
-<div id="stopList">Choose a date and press Load</div>
-</div>
-
 <div id="map"></div>
+<div id="list">Loading stops...</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
 
-const map = L.map("map").setView([52,-105],7);
+const map = L.map('map').setView([52,-105],7);
 
 L.tileLayer(
-"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
 {
 maxZoom:19,
-attribution:"Satellite © Esri"
+attribution:'Satellite © Esri'
 }
 ).addTo(map);
 
 let marker=null;
 
-function showPoint(lat,lng,text){
+function showMarker(lat,lng,text){
 
 if(!marker){
 marker=L.marker([lat,lng]).addTo(map);
@@ -89,75 +73,89 @@ marker.setLatLng([lat,lng]);
 marker.bindPopup(text).openPopup();
 
 map.setView([lat,lng],14);
+}
+
+function duration(start,end){
+
+let ms=end-start;
+
+let mins=Math.floor(ms/60000);
+
+let h=Math.floor(mins/60);
+let m=mins%60;
+
+if(h===0) return m+" min";
+
+return h+" hr "+m+" min";
+}
+
+async function reverseAddress(lat,lng){
+
+try{
+
+const r=await fetch(
+"https://nominatim.openstreetmap.org/reverse?format=json&lat="+lat+"&lon="+lng
+);
+
+const j=await r.json();
+
+return j.display_name;
+
+}catch{
+
+return lat+", "+lng;
 
 }
 
-function loadData(){
-
-const selectedDate=document.getElementById("dateInput").value;
-
-if(!selectedDate){
-alert("Select a date first");
-return;
 }
 
-const container=document.getElementById("stopList");
-container.innerHTML="Loading data...";
+async function loadStops(){
 
-fetch("location-history.json")
-.then(r=>r.json())
-.then(data=>{
+const res=await fetch("location-history.json");
 
-let count=0;
+const data=await res.json();
 
-container.innerHTML="";
+const list=document.getElementById("list");
 
-data.forEach(segment=>{
+list.innerHTML="";
 
-if(!segment.startTime) return;
+for(const seg of data){
 
-const date=new Date(segment.startTime).toISOString().split("T")[0];
+if(!seg.timelinePath || seg.timelinePath.length===0) continue;
 
-if(date!==selectedDate) return;
-
-if(!segment.timelinePath) return;
-
-segment.timelinePath.forEach(point=>{
-
-const coords=point.point.replace("geo:","").split(",");
+const coords=seg.timelinePath[0].point.replace("geo:","").split(",");
 
 const lat=parseFloat(coords[0]);
 const lng=parseFloat(coords[1]);
 
-count++;
+const start=new Date(seg.startTime);
+const end=new Date(seg.endTime);
+
+const address=await reverseAddress(lat,lng);
 
 const text=
-"<b>Point "+count+"</b><br>"+
-"Lat: "+lat+"<br>"+
-"Lng: "+lng+"<br>"+
-"Time: "+segment.startTime;
+"<b>"+address+"</b><br>"+
+"Arrival: "+start.toLocaleString()+"<br>"+
+"Departure: "+end.toLocaleString()+"<br>"+
+"Duration: "+duration(start,end);
 
 const div=document.createElement("div");
 
 div.className="stop";
+
 div.innerHTML=text;
 
-div.onclick=()=>showPoint(lat,lng,text);
+div.onclick=()=>showMarker(lat,lng,text);
 
-container.appendChild(div);
-
-});
-
-});
-
-if(count===0){
-container.innerHTML="No data for that date.";
-}
-
-});
+list.appendChild(div);
 
 }
+
+}
+
+loadStops();
 
 </script>
+
 </body>
 </html>
