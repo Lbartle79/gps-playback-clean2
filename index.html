@@ -64,7 +64,7 @@ fetch("location-history.json")
 .then(r=>r.json())
 .then(data=>{
 
-const segments = data.timelineObjects;
+const segments = data;
 
 const list = document.getElementById("list");
 list.innerHTML="";
