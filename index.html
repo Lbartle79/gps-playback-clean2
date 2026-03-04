@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+
 <meta charset="utf-8">
 <title>GPS Stop Map</title>
 
@@ -19,8 +20,8 @@ height:100vh;
 width:260px;
 overflow:auto;
 border-right:2px solid #ccc;
-padding:15px;
-font-size:16px;
+padding:10px;
+font-size:14px;
 }
 
 #map{
@@ -37,10 +38,6 @@ cursor:pointer;
 background:#f0f0f0;
 }
 
-h2{
-margin-top:0;
-}
-
 </style>
 
 </head>
@@ -48,8 +45,11 @@ margin-top:0;
 <body>
 
 <div id="list">
-<h2>Stops</h2>
+
+<h3>Stops</h3>
+
 <div id="stopList"></div>
+
 </div>
 
 <div id="map"></div>
@@ -58,28 +58,30 @@ margin-top:0;
 
 <script>
 
-const map = L.map('map').setView([52.1,-104.5],8);
+const map = L.map("map").setView([52.1,-104.5],8);
 
 const satellite = L.tileLayer(
-'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-{ attribution:'Tiles © Esri' }
+"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+{ attribution:"Tiles © Esri" }
 ).addTo(map);
 
 const labels = L.tileLayer(
-'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'
+"https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
 ).addTo(map);
 
-let marker = null;
+let marker=null;
 
 function showStop(lat,lng,text){
 
 if(!marker){
-marker = L.marker([lat,lng]).addTo(map);
-}else{
+marker=L.marker([lat,lng]).addTo(map);
+}
+else{
 marker.setLatLng([lat,lng]);
 }
 
 marker.bindPopup(text).openPopup();
+
 map.setView([lat,lng],13);
 
 }
@@ -87,56 +89,57 @@ map.setView([lat,lng],13);
 async function loadData(){
 
 const response = await fetch("location-history.json");
+
 const data = await response.json();
 
-const container = document.getElementById("stopList");
+const container=document.getElementById("stopList");
 
-data.forEach((segment,i)=>{
+let stopNumber=0;
 
-let lat = null;
-let lng = null;
+data.forEach(segment=>{
 
-if(segment.activity?.start){
-const geo = segment.activity.start.replace("geo:","");
-const parts = geo.split(",");
-lat = parseFloat(parts[0]);
-lng = parseFloat(parts[1]);
+let geo=null;
+
+if(segment.activity && segment.activity.start){
+geo=segment.activity.start;
 }
 
-else if(segment.placeVisit?.location){
-lat = segment.placeVisit.location.latitudeE7 / 10000000;
-lng = segment.placeVisit.location.longitudeE7 / 10000000;
+if(!geo && segment.activity && segment.activity.end){
+geo=segment.activity.end;
 }
 
-if(lat === null || lng === null) return;
+if(!geo) return;
 
-const startTime = new Date(segment.startTime || segment.duration?.startTimestamp);
-const endTime = new Date(segment.endTime || segment.duration?.endTimestamp);
+geo=geo.replace("geo:","");
 
-const duration = Math.round((endTime - startTime)/60000);
+const parts=geo.split(",");
 
-const div = document.createElement("div");
-div.className="stop";
+const lat=parseFloat(parts[0]);
+const lng=parseFloat(parts[1]);
 
-const text =
-"<b>Stop "+(i+1)+"</b><br>"+
-"Arrival: "+startTime.toLocaleString()+"<br>"+
-"Departure: "+endTime.toLocaleString()+"<br>"+
+const start=new Date(segment.startTime);
+const end=new Date(segment.endTime);
+
+const duration=Math.round((end-start)/60000);
+
+stopNumber++;
+
+const text=
+"<b>Stop "+stopNumber+"</b><br>"+
+"Arrival: "+start.toLocaleString()+"<br>"+
+"Departure: "+end.toLocaleString()+"<br>"+
 "Duration: "+duration+" minutes<br>"+
 lat+", "+lng;
 
-div.innerHTML = text;
+const div=document.createElement("div");
 
-div.onclick = () => showStop(lat,lng,text);
+div.className="stop";
+
+div.innerHTML=text;
+
+div.onclick=()=>showStop(lat,lng,text);
 
 container.appendChild(div);
-
-});
-
-}
-
-createStop("Start",startGeo);
-createStop("End",endGeo);
 
 });
 
@@ -145,8 +148,6 @@ createStop("End",endGeo);
 loadData();
 
 </script>
-
-
 
 </body>
 </html>
