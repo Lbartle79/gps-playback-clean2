@@ -93,39 +93,45 @@ const container = document.getElementById("stopList");
 
 data.forEach((segment,i)=>{
 
-if(!segment.activity) return;
+let lat = null;
+let lng = null;
 
-const startGeo = segment.activity.start?.replace("geo:","");
-const endGeo = segment.activity.end?.replace("geo:","");
-
-const startTime = new Date(segment.startTime);
-const endTime = new Date(segment.endTime);
-
-const duration = Math.round((endTime-startTime)/60000);
-
-function createStop(label,geo){
-
-if(!geo) return;
-
+if(segment.activity?.start){
+const geo = segment.activity.start.replace("geo:","");
 const parts = geo.split(",");
-const lat = parseFloat(parts[0]);
-const lng = parseFloat(parts[1]);
+lat = parseFloat(parts[0]);
+lng = parseFloat(parts[1]);
+}
+
+else if(segment.placeVisit?.location){
+lat = segment.placeVisit.location.latitudeE7 / 10000000;
+lng = segment.placeVisit.location.longitudeE7 / 10000000;
+}
+
+if(lat === null || lng === null) return;
+
+const startTime = new Date(segment.startTime || segment.duration?.startTimestamp);
+const endTime = new Date(segment.endTime || segment.duration?.endTimestamp);
+
+const duration = Math.round((endTime - startTime)/60000);
 
 const div = document.createElement("div");
 div.className="stop";
 
 const text =
-"<b>Segment "+(i+1)+" "+label+"</b><br>"+
+"<b>Stop "+(i+1)+"</b><br>"+
 "Arrival: "+startTime.toLocaleString()+"<br>"+
 "Departure: "+endTime.toLocaleString()+"<br>"+
 "Duration: "+duration+" minutes<br>"+
 lat+", "+lng;
 
-div.innerHTML=text;
+div.innerHTML = text;
 
-div.onclick=()=>showStop(lat,lng,text);
+div.onclick = () => showStop(lat,lng,text);
 
 container.appendChild(div);
+
+});
 
 }
 
