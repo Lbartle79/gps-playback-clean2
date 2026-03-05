@@ -22,20 +22,12 @@ height:55vh;
 
 #controls{
 padding:10px;
-background:#f0f0f0;
-border-bottom:1px solid #ccc;
-}
-
-#search{
-font-size:18px;
-padding:6px;
-width:200px;
+background:#eee;
 }
 
 button{
 font-size:18px;
 padding:6px 10px;
-margin-left:5px;
 }
 
 #list{
@@ -45,12 +37,23 @@ padding:12px;
 font-size:20px;
 }
 
+.day{
+font-weight:bold;
+font-size:22px;
+margin-top:18px;
+margin-bottom:8px;
+}
+
 .segment{
 border:1px solid #ccc;
-margin-bottom:10px;
-padding:12px;
+margin-bottom:8px;
+padding:10px;
 cursor:pointer;
 background:white;
+}
+
+.segment:hover{
+background:#eee;
 }
 
 .segment.active{
@@ -66,10 +69,7 @@ border-color:#0077ff;
 <div id="map"></div>
 
 <div id="controls">
-Search date:
-<input id="search" placeholder="YYYY-MM-DD">
-<button onclick="searchDate()">Go</button>
-<button onclick="toggleMap()">Satellite</button>
+<button onclick="toggleMap()">Toggle Satellite</button>
 </div>
 
 <div id="list">Loading timeline…</div>
@@ -92,9 +92,6 @@ let satellite=L.tileLayer(
 
 let currentLayer="street";
 
-let marker;
-let line;
-
 function toggleMap(){
 
 if(currentLayer==="street"){
@@ -109,19 +106,36 @@ currentLayer="street";
 
 }
 
-const list=document.getElementById("list");
-const segments=[];
+let marker;
+let line;
 
 fetch("location-history.json")
 .then(r=>r.json())
 .then(data=>{
 
+const list=document.getElementById("list");
 list.innerHTML="";
 
-data.forEach((seg,i)=>{
+let currentDay="";
+
+data.forEach(seg=>{
 
 const start=new Date(seg.startTime);
 const end=new Date(seg.endTime);
+
+const day=start.toDateString();
+
+if(day!==currentDay){
+
+currentDay=day;
+
+const dayDiv=document.createElement("div");
+dayDiv.className="day";
+dayDiv.textContent=day;
+
+list.appendChild(dayDiv);
+
+}
 
 const startCoords=seg.activity.start.replace("geo:","").split(",");
 const endCoords=seg.activity.end.replace("geo:","").split(",");
@@ -138,9 +152,7 @@ const div=document.createElement("div");
 div.className="segment";
 
 div.innerHTML=`
-<b>${start.toLocaleDateString()}</b><br>
-Start: ${start.toLocaleTimeString()}<br>
-End: ${end.toLocaleTimeString()}<br>
+${start.toLocaleTimeString()} → ${end.toLocaleTimeString()}<br>
 Duration: ${dur} minutes
 `;
 
@@ -165,42 +177,15 @@ map.setView([startLat,startLng],15);
 
 };
 
-segments.push({
-date:start.toISOString().split("T")[0],
-element:div
-});
-
 list.appendChild(div);
 
 });
 
 });
 
-function searchDate(){
-
-const value=document.getElementById("search").value.trim();
-
-for(const seg of segments){
-
-if(seg.date.includes(value)){
-
-seg.element.scrollIntoView({
-behavior:"smooth",
-block:"center"
-});
-
-seg.element.click();
-return;
-
-}
-
-}
-
-alert("Date not found");
-
-}
-
 </script>
 
 </body>
 </html>
+
+
