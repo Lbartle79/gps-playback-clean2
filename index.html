@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>GPS Timeline Viewer</title>
+<title>Location Timeline</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
@@ -10,11 +10,13 @@
 
 body{
 margin:0;
-font-family:Arial;
+font-family:Arial, sans-serif;
+background:#f5f5f5;
 }
 
 #map{
-height:55vh;
+height:45vh;
+width:100%;
 }
 
 #controls{
@@ -24,36 +26,32 @@ background:#eee;
 
 button{
 font-size:18px;
-padding:6px 10px;
+padding:6px 12px;
 }
 
 #list{
-padding:12px;
+padding:15px;
 font-size:20px;
 }
 
 .day{
+font-size:24px;
 font-weight:bold;
-font-size:22px;
-margin-top:18px;
-margin-bottom:8px;
+margin-top:25px;
+margin-bottom:10px;
 }
 
 .segment{
-border:1px solid #ccc;
-margin-bottom:8px;
-padding:10px;
-cursor:pointer;
 background:white;
+border:1px solid #ccc;
+padding:12px;
+margin-bottom:10px;
+border-radius:6px;
+cursor:pointer;
 }
 
 .segment:hover{
-background:#eee;
-}
-
-.segment.active{
-background:#dfefff;
-border-color:#0077ff;
+background:#eef5ff;
 }
 
 </style>
@@ -67,20 +65,20 @@ border-color:#0077ff;
 <button onclick="toggleMap()">Toggle Satellite</button>
 </div>
 
-<div id="list">Loading timeline…</div>
+<div id="list">Loading movements…</div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
 
-const map=L.map('map').setView([52,-105],6);
+const map = L.map('map').setView([52,-105],6);
 
-let street=L.tileLayer(
+let street = L.tileLayer(
 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
 {maxZoom:19}
 ).addTo(map);
 
-let satellite=L.tileLayer(
+let satellite = L.tileLayer(
 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
 {maxZoom:19}
 );
@@ -153,13 +151,8 @@ Duration: ${dur} minutes
 
 div.onclick=()=>{
 
-document.querySelectorAll(".segment")
-.forEach(s=>s.classList.remove("active"));
-
-div.classList.add("active");
-
-if(marker)map.removeLayer(marker);
-if(line)map.removeLayer(line);
+if(marker) map.removeLayer(marker);
+if(line) map.removeLayer(line);
 
 marker=L.marker([startLat,startLng]).addTo(map);
 
@@ -182,5 +175,3 @@ list.appendChild(div);
 
 </body>
 </html>
-
-
