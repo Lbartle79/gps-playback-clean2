@@ -178,11 +178,11 @@ list.appendChild(div);
 
 function searchDate(){
 
-const value=document.getElementById("search").value;
+const value=document.getElementById("search").value.trim();
 
 for(const seg of segments){
 
-if(seg.date===value){
+if(seg.date.includes(value)){
 
 seg.element.scrollIntoView({
 behavior:"smooth",
@@ -190,11 +190,13 @@ block:"center"
 });
 
 seg.element.click();
-break;
+return;
 
 }
 
 }
+
+alert("Date not found");
 
 }
 
