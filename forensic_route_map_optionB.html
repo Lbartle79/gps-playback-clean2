@@ -1,0 +1,190 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Forensic Investigator Map</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+body {margin:0;font-family:Arial}
+#map {height:60vh}
+#controls {padding:10px;background:#f2f2f2}
+#timeline {height:35vh;overflow-y:auto;font-size:14px}
+.item {padding:6px;border-bottom:1px solid #ddd;cursor:pointer}
+.item:hover {background:#e8e8e8}
+button {padding:6px 10px;margin-right:6px}
+</style>
+</head>
+
+<body>
+
+<div id="controls">
+<b>Forensic Route Viewer</b>
+<button onclick="prevPoint()">◀ Prev</button>
+<button onclick="nextPoint()">Next ▶</button>
+<button onclick="play()">▶ Play</button>
+</div>
+
+<div id="map"></div>
+<div id="timeline"></div>
+
+<script>
+
+var map = L.map('map').setView([53,-106],6);
+
+var road = L.tileLayer(
+'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+{maxZoom:19}
+).addTo(map);
+
+var satellite = L.tileLayer(
+'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+{maxZoom:19}
+);
+
+L.control.layers({"Road":road,"Satellite":satellite}).addTo(map);
+
+var marker;
+var routeLine;
+var data=[];
+
+fetch("location-history.json")
+.then(r=>r.json())
+.then(json=>{
+
+    json.forEach(item=>{
+
+        if(item.visit){
+            var p=item.visit.topCandidate.placeLocation.replace("geo:","").split(",");
+            data.push({
+                type:"visit",
+                lat:parseFloat(p[0]),
+                lon:parseFloat(p[1]),
+                time:item.startTime
+            });
+        }
+
+        if(item.activity){
+            var s=item.activity.start.replace("geo:","").split(",");
+            var e=item.activity.end.replace("geo:","").split(",");
+
+            data.push({
+                type:"movement_start",
+                lat:parseFloat(s[0]),
+                lon:parseFloat(s[1]),
+                time:item.startTime
+            });
+
+            data.push({
+                type:"movement_end",
+                lat:parseFloat(e[0]),
+                lon:parseFloat(e[1]),
+                time:item.endTime
+            });
+        }
+
+    });
+
+    data.sort((a,b)=>new Date(a.time)-new Date(b.time));
+
+    buildTimeline();
+
+});
+
+function buildTimeline(){
+
+    var t=document.getElementById("timeline");
+
+    data.forEach((p,i)=>{
+
+        var div=document.createElement("div");
+        div.className="item";
+
+        var d=new Date(p.time);
+
+        div.innerHTML=i+" | "+p.type+" | "+d.toLocaleString();
+
+        div.onclick=function(){showPoint(i)};
+
+        t.appendChild(div);
+
+    });
+
+}
+
+var current=0;
+
+function showPoint(i){
+
+    var p=data[i];
+
+    if(marker) map.removeLayer(marker);
+
+    marker=L.marker([p.lat,p.lon]).addTo(map);
+
+    map.panTo([p.lat,p.lon]);
+
+    marker.bindPopup(
+        "<b>"+p.type+"</b><br>"+
+        new Date(p.time).toLocaleString()+"<br>"+
+        p.lat+", "+p.lon
+    ).openPopup();
+
+    drawRoute(i);
+
+    current=i;
+
+}
+
+function drawRoute(i){
+
+    var coords=[];
+
+    for(var x=0;x<=i;x++){
+        coords.push([data[x].lat,data[x].lon]);
+    }
+
+    if(routeLine) map.removeLayer(routeLine);
+
+    routeLine=L.polyline(coords,{color:"red"}).addTo(map);
+
+}
+
+function nextPoint(){
+    if(current < data.length-1){
+        showPoint(current+1);
+    }
+}
+
+function prevPoint(){
+    if(current>0){
+        showPoint(current-1);
+    }
+}
+
+function play(){
+
+    var i=current;
+
+    var timer=setInterval(function(){
+
+        if(i>=data.length){
+            clearInterval(timer);
+            return;
+        }
+
+        showPoint(i);
+        i++;
+
+    },1000);
+
+}
+
+</script>
+
+</body>
+</html>
