@@ -12,30 +12,50 @@ body{
 margin:0;
 font-family:Arial;
 display:flex;
+flex-direction:column;
 height:100vh;
 }
 
-#list{
-width:420px;
-overflow:auto;
-border-right:1px solid #ccc;
-padding:12px;
+#map{
+height:55vh;
+}
+
+#controls{
+padding:10px;
+background:#f0f0f0;
+border-bottom:1px solid #ccc;
+}
+
+#search{
 font-size:18px;
+padding:6px;
+width:200px;
+}
+
+button{
+font-size:18px;
+padding:6px 10px;
+margin-left:5px;
+}
+
+#list{
+height:45vh;
+overflow:auto;
+padding:12px;
+font-size:20px;
 }
 
 .segment{
 border:1px solid #ccc;
-margin-bottom:8px;
-padding:10px;
+margin-bottom:10px;
+padding:12px;
 cursor:pointer;
+background:white;
 }
 
-.segment:hover{
-background:#eee;
-}
-
-#map{
-flex:1;
+.segment.active{
+background:#dfefff;
+border-color:#0077ff;
 }
 
 </style>
@@ -43,8 +63,16 @@ flex:1;
 
 <body>
 
-<div id="list">Loading timeline…</div>
 <div id="map"></div>
+
+<div id="controls">
+Search date:
+<input id="search" placeholder="YYYY-MM-DD">
+<button onclick="searchDate()">Go</button>
+<button onclick="toggleMap()">Satellite</button>
+</div>
+
+<div id="list">Loading timeline…</div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
@@ -52,22 +80,45 @@ flex:1;
 
 const map=L.map('map').setView([52,-105],6);
 
-L.tileLayer(
+let street=L.tileLayer(
 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
 {maxZoom:19}
 ).addTo(map);
 
+let satellite=L.tileLayer(
+'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+{maxZoom:19}
+);
+
+let currentLayer="street";
+
 let marker;
 let line;
+
+function toggleMap(){
+
+if(currentLayer==="street"){
+map.removeLayer(street);
+satellite.addTo(map);
+currentLayer="satellite";
+}else{
+map.removeLayer(satellite);
+street.addTo(map);
+currentLayer="street";
+}
+
+}
+
+const list=document.getElementById("list");
+const segments=[];
 
 fetch("location-history.json")
 .then(r=>r.json())
 .then(data=>{
 
-const list=document.getElementById("list");
 list.innerHTML="";
 
-data.forEach(seg=>{
+data.forEach((seg,i)=>{
 
 const start=new Date(seg.startTime);
 const end=new Date(seg.endTime);
@@ -90,12 +141,15 @@ div.innerHTML=`
 <b>${start.toLocaleDateString()}</b><br>
 Start: ${start.toLocaleTimeString()}<br>
 End: ${end.toLocaleTimeString()}<br>
-Duration: ${dur} minutes<br>
-Start: ${startLat.toFixed(5)}, ${startLng.toFixed(5)}<br>
-End: ${endLat.toFixed(5)}, ${endLng.toFixed(5)}
+Duration: ${dur} minutes
 `;
 
 div.onclick=()=>{
+
+document.querySelectorAll(".segment")
+.forEach(s=>s.classList.remove("active"));
+
+div.classList.add("active");
 
 if(marker)map.removeLayer(marker);
 if(line)map.removeLayer(line);
@@ -111,11 +165,38 @@ map.setView([startLat,startLng],15);
 
 };
 
+segments.push({
+date:start.toISOString().split("T")[0],
+element:div
+});
+
 list.appendChild(div);
 
 });
 
 });
+
+function searchDate(){
+
+const value=document.getElementById("search").value;
+
+for(const seg of segments){
+
+if(seg.date===value){
+
+seg.element.scrollIntoView({
+behavior:"smooth",
+block:"center"
+});
+
+seg.element.click();
+break;
+
+}
+
+}
+
+}
 
 </script>
 
