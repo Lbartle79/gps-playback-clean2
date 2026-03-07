@@ -169,7 +169,7 @@ d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})+
 
 el.onclick=()=>{
 
-map.setView([p.lat,p.lon],13);
+map.panTo([p.lat,p.lon]);
 
 let m=L.marker([p.lat,p.lon]).addTo(map);
 
