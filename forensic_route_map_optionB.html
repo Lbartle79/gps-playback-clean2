@@ -67,7 +67,6 @@ cursor:pointer;
 </div>
 
 <div id="timeline"></div>
-
 <script>
 
 let map=L.map('map').setView([54,-106],5)
@@ -183,6 +182,11 @@ break
 
 }
 
+}
+let playTimer=null;
+
+function pauseTimeline(){
+clearInterval(playTimer);
 }
 </script>
 
