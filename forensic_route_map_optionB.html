@@ -148,7 +148,32 @@ t.appendChild(div)
 })
 
 }
+function jumpToDate(){
 
+let input=document.getElementById("dateJump").value
+if(!input) return
+
+let target=new Date(input)
+
+for(let p of points){
+
+let d=new Date(p.time)
+
+if(
+d.getFullYear()===target.getFullYear() &&
+d.getMonth()===target.getMonth() &&
+d.getDate()===target.getDate()
+){
+
+map.panTo([p.lat,p.lon])
+L.marker([p.lat,p.lon]).addTo(map)
+
+break
+}
+
+}
+
+}
 </script>
 
 </body>
