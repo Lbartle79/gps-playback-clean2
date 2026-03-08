@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 
-<title>Forensic Location Viewer</title>
+<title>Location Timeline Map</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -16,9 +16,14 @@ margin:0;
 font-family:Arial;
 }
 
+#controls{
+padding:10px;
+background:#f0f0f0;
+border-bottom:1px solid #ccc;
+}
+
 #map{
 height:60vh;
-width:100%;
 }
 
 #timeline{
@@ -31,18 +36,23 @@ background:#fafafa;
 .item{
 padding:8px;
 border-bottom:1px solid #ddd;
+cursor:pointer;
 }
 
 .item:hover{
 background:#eee;
-cursor:pointer;
+}
+
+button{
+margin-right:6px;
 }
 
 </style>
 </head>
 
 <body>
-<div id="controls" style="padding:10px;background:#f0f0f0;border-bottom:1px solid #ccc;">
+
+<div id="controls">
 
 <button onclick="playTimeline()">Play</button>
 <button onclick="pauseTimeline()">Pause</button>
@@ -53,30 +63,43 @@ cursor:pointer;
 <button onclick="jumpToDate()">Go</button>
 
 </div>
-<div id="map"></div>
-<div style="padding:10px;background:#fff;border-top:1px solid #ccc">
-<label>Jump to date:</label>
-<input type="date" id="dateJump">
-<button onclick="jumpToDate()">Go</button>
-</div>
 
-<div style="padding:10px;background:#fff;border-top:1px solid #ccc">
-<label>Jump to date:</label>
-<input type="date" id="dateJump">
-<button onclick="jumpToDate()">Go</button>
-</div>
+<div id="map"></div>
 
 <div id="timeline"></div>
+
 <script>
 
 let map=L.map('map').setView([54,-106],5)
 
-L.tileLayer(
+let road=L.tileLayer(
 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
 {maxZoom:19}
 ).addTo(map)
 
+let sat=L.tileLayer(
+'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+{maxZoom:19}
+)
+
+let satellite=false
+
+function toggleSatellite(){
+
+if(satellite){
+map.removeLayer(sat)
+map.addLayer(road)
+satellite=false
+}else{
+map.removeLayer(road)
+map.addLayer(sat)
+satellite=true
+}
+
+}
+
 let points=[]
+let markers=[]
 
 fetch("location-history.json")
 .then(r=>r.json())
@@ -132,7 +155,7 @@ function buildTimeline(){
 
 let t=document.getElementById("timeline")
 
-points.forEach(p=>{
+points.forEach((p,i)=>{
 
 let d=new Date(p.time)
 
@@ -147,9 +170,9 @@ d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})+
 div.onclick=()=>{
 
 map.panTo([p.lat,p.lon])
+
 L.marker([p.lat,p.lon]).addTo(map)
 
-document.getElementsByClassName("item")[i].scrollIntoView({block:"start"});
 }
 
 t.appendChild(div)
@@ -157,6 +180,35 @@ t.appendChild(div)
 })
 
 }
+
+let playTimer=null
+let playIndex=0
+
+function playTimeline(){
+
+playTimer=setInterval(()=>{
+
+if(playIndex>=points.length){
+clearInterval(playTimer)
+return
+}
+
+let p=points[playIndex]
+
+map.panTo([p.lat,p.lon])
+
+L.circleMarker([p.lat,p.lon],{radius:6}).addTo(map)
+
+playIndex++
+
+},800)
+
+}
+
+function pauseTimeline(){
+clearInterval(playTimer)
+}
+
 function jumpToDate(){
 
 let input=document.getElementById("dateJump").value
@@ -164,9 +216,11 @@ if(!input) return
 
 let target=new Date(input)
 
-for(let p of points){
+let items=document.getElementsByClassName("item")
 
-let d=new Date(p.time)
+for(let i=0;i<points.length;i++){
+
+let d=new Date(points[i].time)
 
 if(
 d.getFullYear()===target.getFullYear() &&
@@ -174,20 +228,22 @@ d.getMonth()===target.getMonth() &&
 d.getDate()===target.getDate()
 ){
 
-map.panTo([p.lat,p.lon])
-L.marker([p.lat,p.lon]).addTo(map)
-document.getElementsByClassName("item")[i].scrollIntoView({block:"start"});
+map.panTo([points[i].lat,points[i].lon])
+
+L.marker([points[i].lat,points[i].lon]).addTo(map)
+
+if(items[i]){
+items[i].scrollIntoView({behavior:"smooth",block:"start"})
+}
+
 break
-}
 
 }
 
 }
-let playTimer=null;
 
-function pauseTimeline(){
-clearInterval(playTimer);
 }
+
 </script>
 
 </body>
