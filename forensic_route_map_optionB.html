@@ -138,7 +138,6 @@ d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})+
 div.onclick=()=>{
 
 map.panTo([p.lat,p.lon])
-
 L.marker([p.lat,p.lon]).addTo(map)
 document.getElementsByClassName("item")[i].scrollIntoView({block:"start"});
 }
