@@ -125,7 +125,7 @@ parseFloat(coords[1])
 
 function formatTime(t){
 
-let d = new Date(t)
+let d=new Date(t)
 
 return d.toLocaleTimeString('en-CA',{
 hour:'numeric',
@@ -135,6 +135,7 @@ timeZone:'America/Regina'
 })
 
 }
+
 function addStop(day,coords,start,end){
 
 if(!stopsByDay[day]) stopsByDay[day]=[]
@@ -196,7 +197,9 @@ title.onclick=()=>loadDay(day)
 
 timeline.appendChild(title)
 
-stopsByDay[day].forEach((stop,i)=>{
+stopsByDay[day]
+.sort((a,b)=> new Date(a.start)-new Date(b.start))
+.forEach((stop,i)=>{
 
 let div=document.createElement("div")
 div.className="stop"
