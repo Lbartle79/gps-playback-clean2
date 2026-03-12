@@ -308,7 +308,8 @@ endMarker = L.marker(last.coords)
 .bindPopup("END<br>"+formatTime(last.end))
 
 drawRoute(day)
-
+let bounds = L.latLngBounds(stops.map(s => s.coords))
+map.fitBounds(bounds, {padding:[40,40]})
 }
 
 function jumpToDate(){
