@@ -244,19 +244,31 @@ map.fitBounds(bounds,{padding:[40,40]})
 
 function selectStop(day,index){
 
-let stop=stopsByDay[day][index]
+let stops = stopsByDay[day]
+
+let stop = stops[index]
 
 if(activeStopMarker) map.removeLayer(activeStopMarker)
 
-activeStopMarker=L.marker(stop.coords,{icon:bigIcon})
+activeStopMarker = L.marker(stop.coords,{icon:bigIcon})
 .addTo(map)
 .bindPopup(
 formatTime(stop.start)+" - "+formatTime(stop.end)
 )
 .openPopup()
 
-}
+/* keep the route visible */
 
+if(routeLine) map.removeLayer(routeLine)
+
+let routeCoords = stops.map(s => s.coords)
+
+routeLine = L.polyline(routeCoords,{
+color:'blue',
+weight:4
+}).addTo(map)
+
+}
 function jumpToDate(){
 
 let date=document.getElementById("dateJump").value
