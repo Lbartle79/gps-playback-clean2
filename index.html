@@ -287,19 +287,24 @@ formatDate(stop.start)+"<br>"+
 
 function loadDay(day){
 
-let stops=stopsByDay[day]
+let stops = stopsByDay[day]
 
-if(!stops)return
+if(!stops) return
 
-if(startMarker)map.removeLayer(startMarker)
-if(endMarker)map.removeLayer(endMarker)
+if(startMarker) map.removeLayer(startMarker)
+if(endMarker) map.removeLayer(endMarker)
+if(activeStopMarker) map.removeLayer(activeStopMarker)
 
-let first=stops[0]
-let last=stops[stops.length-1]
+let first = stops[0]
+let last = stops[stops.length-1]
 
-startMarker=L.marker(first.coords).addTo(map).bindPopup("Start of Day")
+startMarker = L.marker(first.coords)
+.addTo(map)
+.bindPopup("START<br>"+formatTime(first.start))
 
-endMarker=L.marker(last.coords).addTo(map).bindPopup("End of Day")
+endMarker = L.marker(last.coords)
+.addTo(map)
+.bindPopup("END<br>"+formatTime(last.end))
 
 drawRoute(day)
 
