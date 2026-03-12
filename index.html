@@ -220,6 +220,7 @@ Object.keys(stopsByDay).sort().forEach(day=>{
 
 let title=document.createElement("div")
 title.className="dayTitle"
+title.id = "day-"+day
 title.innerText=day
 timeline.appendChild(title)
 
