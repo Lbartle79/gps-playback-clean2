@@ -93,8 +93,8 @@ let streetLayer = L.tileLayer(
 ).addTo(map)
 
 let satelliteLayer = L.tileLayer(
-'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-{maxZoom:17}
+'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+{maxZoom:19}
 )
 
 let satellite=false
