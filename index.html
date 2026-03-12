@@ -313,11 +313,24 @@ drawRoute(day)
 
 function jumpToDate(){
 
-let date=document.getElementById("dateJump").value
+let date = document.getElementById("dateJump").value
 
 if(stopsByDay[date]){
 
 loadDay(date)
+
+/* scroll timeline to the selected date */
+
+let dayElement = document.getElementById("day-"+date)
+
+if(dayElement){
+
+dayElement.scrollIntoView({
+behavior:"smooth",
+block:"start"
+})
+
+}
 
 }else{
 
