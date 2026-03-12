@@ -125,15 +125,16 @@ parseFloat(coords[1])
 
 function formatTime(t){
 
-let d=new Date(t)
+let d = new Date(t)
 
-return d.toLocaleTimeString([],{
+return d.toLocaleTimeString('en-CA',{
 hour:'numeric',
-minute:'2-digit'
+minute:'2-digit',
+hour12:true,
+timeZone:'America/Regina'
 })
 
 }
-
 function addStop(day,coords,start,end){
 
 if(!stopsByDay[day]) stopsByDay[day]=[]
