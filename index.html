@@ -2,64 +2,47 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Forensic Location Viewer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GPS Playback</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
 <style>
 
 body{
 margin:0;
-font-family:Arial, Helvetica, sans-serif;
-font-size:22px;
+font-family:Arial;
 }
 
 #controls{
-padding:16px;
-background:#f0f0f0;
-border-bottom:1px solid #ccc;
-font-size:22px;
-}
-
-#controls input{
-font-size:22px;
-padding:8px;
-}
-
-#controls button{
-font-size:22px;
-padding:10px 16px;
-margin-left:10px;
+padding:10px;
+background:#eee;
 }
 
 #map{
-height:50vh;
-width:100%;
+height:55vh;
 }
 
 #timeline{
-height:50vh;
+height:40vh;
 overflow-y:auto;
-padding:18px;
-background:#ffffff;
-font-size:22px;
-line-height:1.6;
+padding:10px;
+background:white;
 }
 
 .dayTitle{
+font-size:22px;
 font-weight:bold;
-margin-top:25px;
-font-size:28px;
+margin-top:20px;
 }
 
 .stop{
-padding:16px;
+padding:10px;
 border-bottom:1px solid #ddd;
-cursor:pointer;
 }
 
 .stop:hover{
-background:#eef3ff;
+background:#f0f0f0;
 }
 
 </style>
@@ -71,6 +54,7 @@ background:#eef3ff;
 
 Jump to date:
 <input type="date" id="dateJump">
+
 <button onclick="jumpToDate()">Go</button>
 
 <button onclick="toggleSatellite()">Satellite</button>
@@ -81,17 +65,12 @@ Jump to date:
 
 <div id="timeline"></div>
 
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
 
-let map = L.map('map').setView([53,-106],6)
-let bigIcon = L.icon({
-iconUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-iconSize:[40,65],
-iconAnchor:[20,65],
-popupAnchor:[0,-55]
-})
+let map = L.map('map').setView([53,-106],5)
+
 let streetLayer = L.tileLayer(
 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
 {maxZoom:19}
@@ -102,21 +81,28 @@ let satelliteLayer = L.tileLayer(
 {maxZoom:19}
 )
 
-let satellite=false
+let usingSatellite=false
 
 function toggleSatellite(){
 
-if(!satellite){
-map.removeLayer(streetLayer)
-map.addLayer(satelliteLayer)
-satellite=true
-}else{
+if(usingSatellite){
 map.removeLayer(satelliteLayer)
 map.addLayer(streetLayer)
-satellite=false
+}else{
+map.removeLayer(streetLayer)
+map.addLayer(satelliteLayer)
 }
 
+usingSatellite=!usingSatellite
 
+}
+
+let bigIcon = L.icon({
+iconUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+iconSize:[40,65],
+iconAnchor:[20,65],
+popupAnchor:[0,-55]
+})
 
 let startMarker=null
 let endMarker=null
@@ -126,88 +112,56 @@ let routeLine=null
 let stopsByDay={}
 
 function parsePoint(p){
+
 let coords=p.replace("geo:","").split(",")
-return [parseFloat(coords[0]),parseFloat(coords[1])]
+
+return[
+parseFloat(coords[0]),
+parseFloat(coords[1])
+]
+
 }
 
 function formatTime(t){
 
 let d=new Date(t)
 
-let h=d.getHours()
-let m=d.getMinutes()
-
-let ampm=h>=12?"PM":"AM"
-
-h=h%12
-if(h==0)h=12
-
-m=m<10?"0"+m:m
-
-return h+":"+m+" "+ampm
+return d.toLocaleTimeString([],{
+hour:'numeric',
+minute:'2-digit'
+})
 
 }
 
-function formatDate(t){
+function addStop(day,coords,start,end){
 
-let d=new Date(t)
-return d.toISOString().split("T")[0]
+if(!stopsByDay[day]) stopsByDay[day]=[]
+
+stopsByDay[day].push({
+coords:coords,
+start:start,
+end:end
+})
 
 }
 
-fetch("location-history.json")
+fetch('location-history.json')
+
 .then(r=>r.json())
+
 .then(data=>{
 
-data.forEach(entry=>{
+data.forEach(item=>{
 
-let start=entry.startTime
-let end=entry.endTime
+if(item.activity){
 
-let day=formatDate(start)
+let start=parsePoint(item.activity.start)
+let end=parsePoint(item.activity.end)
 
-if(!stopsByDay[day])stopsByDay[day]=[]
+let day=item.startTime.slice(0,10)
 
-if(entry.visit){
-
-let p=parsePoint(entry.visit.topCandidate.placeLocation)
-
-stopsByDay[day].push({
-type:"visit",
-coords:p,
-start:start,
-end:end
-})
-
-}
-
-if(entry.activity){
-
-let p=parsePoint(entry.activity.start)
-
-stopsByDay[day].push({
-type:"activity",
-coords:p,
-start:start,
-end:end
-})
-
-}
-
-if(entry.timelinePath){
-
-entry.timelinePath.forEach(pt=>{
-
-let p=parsePoint(pt.point)
-
-stopsByDay[day].push({
-type:"breadcrumb",
-coords:p,
-start:start,
-end:end
-})
-
-})
+addStop(day,start,item.startTime,item.endTime)
+addStop(day,end,item.startTime,item.endTime)
 
 }
 
@@ -221,28 +175,27 @@ function buildTimeline(){
 
 let timeline=document.getElementById("timeline")
 
+timeline.innerHTML=""
+
 Object.keys(stopsByDay).sort().forEach(day=>{
 
 let title=document.createElement("div")
 title.className="dayTitle"
-title.id = "day-"+day
+title.id="day-"+day
 title.innerText=day
+
+title.onclick=()=>loadDay(day)
+
 timeline.appendChild(title)
 
 stopsByDay[day].forEach((stop,i)=>{
 
-if(stop.type=="breadcrumb")return
-
 let div=document.createElement("div")
 div.className="stop"
 
-let duration=(new Date(stop.end)-new Date(stop.start))/60000
-
 div.innerHTML=
-
 "Arrival: "+formatTime(stop.start)+"<br>"+
-"Departure: "+formatTime(stop.end)+"<br>"+
-"Duration: "+Math.round(duration)+" minutes"
+"Departure: "+formatTime(stop.end)
 
 div.onclick=()=>selectStop(day,i)
 
@@ -254,84 +207,69 @@ timeline.appendChild(div)
 
 }
 
-function drawRoute(day){
-
-if(routeLine)map.removeLayer(routeLine)
-
-let pts=[]
-
-stopsByDay[day].forEach(s=>{
-if(s.type=="breadcrumb")pts.push(s.coords)
-})
-
-if(pts.length>1){
-
-routeLine=L.polyline(pts,{color:"blue"}).addTo(map)
-
-map.fitBounds(routeLine.getBounds())
-
-}
-
-}
-
-function selectStop(day,index){
-
-let stops=stopsByDay[day]
-let stop=stops[index]
-
-if(activeStopMarker)map.removeLayer(activeStopMarker)
-
-activeStopMarker=L.marker(stop.coords).addTo(map)
-
-activeStopMarker.bindPopup(
-formatDate(stop.start)+"<br>"+
-"Arrival: "+formatTime(stop.start)+"<br>"+
-"Departure: "+formatTime(stop.end)
-).openPopup()
-
-}
-
 function loadDay(day){
 
-let stops = stopsByDay[day]
+let stops=stopsByDay[day]
 
 if(!stops) return
 
 if(startMarker) map.removeLayer(startMarker)
 if(endMarker) map.removeLayer(endMarker)
 if(activeStopMarker) map.removeLayer(activeStopMarker)
+if(routeLine) map.removeLayer(routeLine)
 
-let first = stops[0]
-let last = stops[stops.length-1]
+let first=stops[0]
+let last=stops[stops.length-1]
 
-startMarker = L.marker(first.coords)
+startMarker=L.marker(first.coords,{icon:bigIcon})
 .addTo(map)
 .bindPopup("START<br>"+formatTime(first.start))
 
-endMarker = L.marker(last.coords)
+endMarker=L.marker(last.coords,{icon:bigIcon})
 .addTo(map)
 .bindPopup("END<br>"+formatTime(last.end))
 
-drawRoute(day)
-let bounds = L.latLngBounds(stops.map(s => s.coords))
-map.fitBounds(bounds, {padding:[40,40]})
+let routeCoords=stops.map(s=>s.coords)
+
+routeLine=L.polyline(routeCoords,{
+color:'blue',
+weight:4
+}).addTo(map)
+
+let bounds=L.latLngBounds(routeCoords)
+
+map.fitBounds(bounds,{padding:[40,40]})
+
+}
+
+function selectStop(day,index){
+
+let stop=stopsByDay[day][index]
+
+if(activeStopMarker) map.removeLayer(activeStopMarker)
+
+activeStopMarker=L.marker(stop.coords,{icon:bigIcon})
+.addTo(map)
+.bindPopup(
+formatTime(stop.start)+" - "+formatTime(stop.end)
+)
+.openPopup()
+
 }
 
 function jumpToDate(){
 
-let date = document.getElementById("dateJump").value
+let date=document.getElementById("dateJump").value
 
 if(stopsByDay[date]){
 
 loadDay(date)
 
-/* scroll timeline to the selected date */
+let el=document.getElementById("day-"+date)
 
-let dayElement = document.getElementById("day-"+date)
+if(el){
 
-if(dayElement){
-
-dayElement.scrollIntoView({
+el.scrollIntoView({
 behavior:"smooth",
 block:"start"
 })
