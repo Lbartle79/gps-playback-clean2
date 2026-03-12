@@ -108,6 +108,7 @@ let startMarker=null
 let endMarker=null
 let activeStopMarker=null
 let routeLine=null
+let currentBounds=null
 
 let stopsByDay={}
 
@@ -137,10 +138,8 @@ function addStop(day,coords,start,end){
 
 if(!stopsByDay[day]) stopsByDay[day]=[]
 
-/* prevent duplicate stops */
-
 let exists = stopsByDay[day].some(s =>
-s.start === start && s.end === end
+s.start===start && s.end===end
 )
 
 if(!exists){
@@ -166,12 +165,10 @@ data.forEach(item=>{
 if(item.activity){
 
 let start=parsePoint(item.activity.start)
-let end=parsePoint(item.activity.end)
 
 let day=item.startTime.slice(0,10)
 
 addStop(day,start,item.startTime,item.endTime)
-addStop(day,end,item.startTime,item.endTime)
 
 }
 
@@ -248,37 +245,42 @@ weight:4
 
 let bounds=L.latLngBounds(routeCoords)
 
+currentBounds=bounds
+
 map.fitBounds(bounds,{padding:[40,40]})
 
 }
 
 function selectStop(day,index){
 
-let stops = stopsByDay[day]
+let stops=stopsByDay[day]
 
-let stop = stops[index]
+let stop=stops[index]
 
 if(activeStopMarker) map.removeLayer(activeStopMarker)
 
-activeStopMarker = L.marker(stop.coords,{icon:bigIcon})
+activeStopMarker=L.marker(stop.coords,{icon:bigIcon})
 .addTo(map)
 .bindPopup(
 formatTime(stop.start)+" - "+formatTime(stop.end)
 )
 .openPopup()
 
-/* keep the route visible */
-
 if(routeLine) map.removeLayer(routeLine)
 
-let routeCoords = stops.map(s => s.coords)
+let routeCoords=stops.map(s=>s.coords)
 
-routeLine = L.polyline(routeCoords,{
+routeLine=L.polyline(routeCoords,{
 color:'blue',
 weight:4
 }).addTo(map)
 
+if(currentBounds){
+map.fitBounds(currentBounds,{padding:[40,40]})
 }
+
+}
+
 function jumpToDate(){
 
 let date=document.getElementById("dateJump").value
