@@ -137,11 +137,21 @@ function addStop(day,coords,start,end){
 
 if(!stopsByDay[day]) stopsByDay[day]=[]
 
+/* prevent duplicate stops */
+
+let exists = stopsByDay[day].some(s =>
+s.start === start && s.end === end
+)
+
+if(!exists){
+
 stopsByDay[day].push({
 coords:coords,
 start:start,
 end:end
 })
+
+}
 
 }
 
