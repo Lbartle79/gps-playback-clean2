@@ -2,140 +2,309 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>GPS Timeline Map</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forensic Location Viewer</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
 <style>
-body{margin:0;font-family:Arial}
+
+body{
+margin:0;
+font-family:Arial,Helvetica,sans-serif;
+}
 
 #map{
-height:50vh;
+height:60vh;
+width:100%;
+}
+
+#controls{
+padding:10px;
+background:#f0f0f0;
+border-bottom:1px solid #ccc;
 }
 
 #timeline{
-height:50vh;
+height:40vh;
 overflow-y:auto;
 padding:10px;
-background:#f5f5f5;
+background:#ffffff;
 }
 
-.day{
-font-weight:bold;
-margin-top:10px;
-font-size:18px;
-}
-
-.item{
-background:white;
-border-radius:6px;
-padding:10px;
-margin-top:6px;
-border:1px solid #ddd;
-}
-
-.item:hover{
-background:#eef5ff;
+.stop{
+padding:8px;
+border-bottom:1px solid #ddd;
 cursor:pointer;
 }
 
-button{
-margin:10px;
-padding:8px 12px;
-font-size:16px;
+.stop:hover{
+background:#f5f5f5;
 }
+
+.dayTitle{
+font-weight:bold;
+margin-top:15px;
+}
+
 </style>
 </head>
 
 <body>
 
+<div id="controls">
+
+Jump to date:
+<input type="date" id="dateJump">
+<button onclick="jumpToDate()">Go</button>
+
+<button onclick="toggleSatellite()">Satellite</button>
+
+</div>
+
 <div id="map"></div>
 
-<button onclick="toggleSatellite()">Toggle Satellite</button>
-
 <div id="timeline"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
 
 let map = L.map('map').setView([53,-106],6)
 
-let street = L.tileLayer(
+let streetLayer = L.tileLayer(
 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
 {maxZoom:19}
 ).addTo(map)
 
-let satellite = L.tileLayer(
-'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-{maxZoom:19}
+let satelliteLayer = L.tileLayer(
+'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+{maxZoom:17}
 )
 
-let usingSatellite=false
+let satellite=false
 
 function toggleSatellite(){
 
-if(usingSatellite){
-map.removeLayer(satellite)
-map.addLayer(street)
+if(!satellite){
+map.removeLayer(streetLayer)
+map.addLayer(satelliteLayer)
+satellite=true
 }else{
-map.removeLayer(street)
-map.addLayer(satellite)
+map.removeLayer(satelliteLayer)
+map.addLayer(streetLayer)
+satellite=false
 }
 
-usingSatellite=!usingSatellite
 }
 
-let marker
+let startMarker=null
+let endMarker=null
+let activeStopMarker=null
+let routeLine=null
 
-fetch('location-history.json')
+let stopsByDay={}
+
+function parsePoint(p){
+let coords=p.replace("geo:","").split(",")
+return [parseFloat(coords[0]),parseFloat(coords[1])]
+}
+
+function formatTime(t){
+
+let d=new Date(t)
+
+let h=d.getHours()
+let m=d.getMinutes()
+
+let ampm=h>=12?"PM":"AM"
+
+h=h%12
+if(h==0)h=12
+
+m=m<10?"0"+m:m
+
+return h+":"+m+" "+ampm
+}
+
+function formatDate(t){
+
+let d=new Date(t)
+
+return d.toISOString().split("T")[0]
+
+}
+
+fetch("location-history.json")
 .then(r=>r.json())
 .then(data=>{
 
+data.forEach(entry=>{
+
+let start=entry.startTime
+let end=entry.endTime
+
+let day=formatDate(start)
+
+if(!stopsByDay[day])stopsByDay[day]=[]
+
+if(entry.visit){
+
+let p=parsePoint(entry.visit.topCandidate.placeLocation)
+
+stopsByDay[day].push({
+type:"visit",
+coords:p,
+start:start,
+end:end
+})
+
+}
+
+if(entry.activity){
+
+let p=parsePoint(entry.activity.start)
+
+stopsByDay[day].push({
+type:"activity",
+coords:p,
+start:start,
+end:end
+})
+
+}
+
+if(entry.timelinePath){
+
+entry.timelinePath.forEach(pt=>{
+
+let p=parsePoint(pt.point)
+
+stopsByDay[day].push({
+type:"breadcrumb",
+coords:p,
+start:start,
+end:end
+})
+
+})
+
+}
+
+})
+
+buildTimeline()
+
+})
+
+function buildTimeline(){
+
 let timeline=document.getElementById("timeline")
 
-data.forEach(item=>{
+Object.keys(stopsByDay).sort().forEach(day=>{
 
-if(item.activity){
+let title=document.createElement("div")
+title.className="dayTitle"
+title.innerText=day
+timeline.appendChild(title)
 
-let s=item.activity.start.replace("geo:","").split(",")
-let e=item.activity.end.replace("geo:","").split(",")
+stopsByDay[day].forEach((stop,i)=>{
 
-let lat=parseFloat(e[0])
-let lon=parseFloat(e[1])
-
-let start=new Date(item.startTime)
-let end=new Date(item.endTime)
-
-let day=start.toDateString()
+if(stop.type=="breadcrumb")return
 
 let div=document.createElement("div")
-div.className="item"
+div.className="stop"
+
+let duration=(new Date(stop.end)-new Date(stop.start))/60000
 
 div.innerHTML=
-"<b>"+day+"</b><br>"+
-start.toLocaleTimeString()+" → "+
-end.toLocaleTimeString()
 
-div.onclick=function(){
+"Arrival: "+formatTime(stop.start)+"<br>"+
+"Departure: "+formatTime(stop.end)+"<br>"+
+"Duration: "+Math.round(duration)+" minutes"
 
-if(marker){
-map.removeLayer(marker)
-}
-
-marker=L.marker([lat,lon]).addTo(map)
-
-map.setView([lat,lon],12)
-
-}
+div.onclick=()=>selectStop(day,i)
 
 timeline.appendChild(div)
 
+})
+
+})
+
 }
 
+function drawRoute(day){
+
+if(routeLine)map.removeLayer(routeLine)
+
+let pts=[]
+
+stopsByDay[day].forEach(s=>{
+if(s.type=="breadcrumb")pts.push(s.coords)
 })
 
-})
+if(pts.length>1){
+
+routeLine=L.polyline(pts,{color:"blue"}).addTo(map)
+
+map.fitBounds(routeLine.getBounds())
+
+}
+
+}
+
+function selectStop(day,index){
+
+let stops=stopsByDay[day]
+
+let stop=stops[index]
+
+if(activeStopMarker)map.removeLayer(activeStopMarker)
+
+activeStopMarker=L.marker(stop.coords).addTo(map)
+
+activeStopMarker.bindPopup(
+formatDate(stop.start)+"<br>"+
+"Arrival: "+formatTime(stop.start)+"<br>"+
+"Departure: "+formatTime(stop.end)
+).openPopup()
+
+}
+
+function loadDay(day){
+
+let stops=stopsByDay[day]
+
+if(!stops)return
+
+if(startMarker)map.removeLayer(startMarker)
+if(endMarker)map.removeLayer(endMarker)
+
+let first=stops[0]
+let last=stops[stops.length-1]
+
+startMarker=L.marker(first.coords).addTo(map).bindPopup("Start of Day")
+
+endMarker=L.marker(last.coords).addTo(map).bindPopup("End of Day")
+
+drawRoute(day)
+
+}
+
+function jumpToDate(){
+
+let date=document.getElementById("dateJump").value
+
+if(stopsByDay[date]){
+
+loadDay(date)
+
+}else{
+
+alert("No data for this date")
+
+}
+
+}
 
 </script>
 
