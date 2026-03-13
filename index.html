@@ -282,6 +282,18 @@ activeStopMarker = L.marker(stop.coords,{icon:bigIcon})
 .openPopup()
 
 }
+
+/* add new stop marker */
+
+activeStopMarker = L.marker(stop.coords,{icon:bigIcon})
+.addTo(map)
+.bindPopup(
+"Arrival: "+formatTime(stop.start)+"<br>"+
+"Departure: "+formatTime(stop.end)
+)
+.openPopup()
+
+}
 function jumpToDate(){
 
 let date=document.getElementById("dateJump").value
