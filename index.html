@@ -265,12 +265,28 @@ if(stopsByDay[date]){
 
 loadDay(date)
 
+/* delay scroll slightly so the timeline is ready */
+
+setTimeout(()=>{
+
 let el=document.getElementById("day-"+date)
 
 if(el){
-el.scrollIntoView({behavior:"smooth",block:"start"})
+el.scrollIntoView({
+behavior:"smooth",
+block:"start"
+})
 }
 
+},150)
+
+}else{
+
+alert("No data for this date")
+
+}
+
+}
 }else{
 alert("No data for this date")
 }
