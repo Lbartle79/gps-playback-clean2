@@ -258,17 +258,35 @@ map.fitBounds(bounds,{padding:[40,40]})
 function selectStop(day,index){
 
 let stops = stopsByDay[day]
-
-/* if a different day was previously loaded, reload the map */
-
-loadDay(day)
-
 let stop = stops[index]
 
-/* remove previous active stop marker */
+/* remove previous stop marker */
 
 if(activeStopMarker){
 map.removeLayer(activeStopMarker)
+}
+
+/* add new stop marker */
+
+activeStopMarker = L.marker(stop.coords,{icon:bigIcon})
+.addTo(map)
+.bindPopup(
+"Arrival: "+formatTime(stop.start)+"<br>"+
+"Departure: "+formatTime(stop.end)
+)
+.openPopup()
+
+/* keep route visible */
+
+if(routeLine) map.removeLayer(routeLine)
+
+let routeCoords = stops.map(s=>s.coords)
+
+routeLine = L.polyline(routeCoords,{
+color:'blue',
+weight:4
+}).addTo(map)
+
 }
 
 /* add new stop marker */
