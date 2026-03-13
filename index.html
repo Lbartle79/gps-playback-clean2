@@ -227,4 +227,57 @@ startMarker=L.marker(first.coords,{icon:bigIcon})
 endMarker=L.marker(last.coords,{icon:bigIcon})
 .addTo(map)
 
-let route=stops.map(s
+let route=stops.map(s=>s.coords)
+
+routeLine=L.polyline(route,{color:'blue',weight:4}).addTo(map)
+
+map.fitBounds(L.latLngBounds(route),{padding:[40,40]})
+
+}
+
+/* select stop */
+
+function selectStop(day,i){
+
+loadDay(day)
+
+let stop=stopsByDay[day][i]
+
+if(activeMarker) map.removeLayer(activeMarker)
+
+activeMarker=L.marker(stop.coords,{icon:bigIcon})
+.addTo(map)
+.bindPopup(
+"Arrival: "+formatTime(stop.start)+"<br>"+
+"Departure: "+formatTime(stop.end)
+)
+.openPopup()
+
+}
+
+/* jump to date */
+
+function jumpToDate(){
+
+let date=document.getElementById("dateJump").value
+
+if(stopsByDay[date]){
+
+loadDay(date)
+
+let el=document.getElementById("day-"+date)
+
+if(el){
+el.scrollIntoView({behavior:"smooth",block:"start"})
+}
+
+}else{
+alert("No data for this date")
+}
+
+}
+
+</script>
+
+</body>
+</html>
