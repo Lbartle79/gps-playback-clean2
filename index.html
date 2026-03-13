@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GPS Playback</title>
+<title>GPS Timeline Viewer</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
@@ -34,11 +34,13 @@ background:white;
 font-size:22px;
 font-weight:bold;
 margin-top:20px;
+cursor:pointer;
 }
 
 .stop{
 padding:10px;
 border-bottom:1px solid #ddd;
+cursor:pointer;
 }
 
 .stop:hover{
@@ -69,6 +71,8 @@ Jump to date:
 
 <script>
 
+/* MAP */
+
 let map = L.map('map').setView([53,-106],5)
 
 let streetLayer = L.tileLayer(
@@ -97,6 +101,8 @@ usingSatellite=!usingSatellite
 
 }
 
+/* BIG MARKER */
+
 let bigIcon = L.icon({
 iconUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
 iconSize:[40,65],
@@ -104,13 +110,18 @@ iconAnchor:[20,65],
 popupAnchor:[0,-55]
 })
 
+/* MARKERS */
+
 let startMarker=null
 let endMarker=null
 let activeStopMarker=null
 let routeLine=null
-let currentBounds=null
+
+/* DATA */
 
 let stopsByDay={}
+
+/* UTILITIES */
 
 function parsePoint(p){
 
@@ -156,6 +167,8 @@ end:end
 
 }
 
+/* LOAD JSON */
+
 fetch('location-history.json')
 
 .then(r=>r.json())
@@ -179,6 +192,8 @@ addStop(day,start,item.startTime,item.endTime)
 buildTimeline()
 
 })
+
+/* BUILD TIMELINE */
 
 function buildTimeline(){
 
@@ -218,6 +233,8 @@ timeline.appendChild(div)
 
 }
 
+/* LOAD DAY */
+
 function loadDay(day){
 
 let stops=stopsByDay[day]
@@ -247,51 +264,22 @@ color:'blue',
 weight:4
 }).addTo(map)
 
-let bounds=L.latLngBounds(routeCoords)
-
-currentBounds=bounds
-
-map.fitBounds(bounds,{padding:[40,40]})
+map.fitBounds(L.latLngBounds(routeCoords),{padding:[40,40]})
 
 }
+
+/* SELECT STOP */
 
 function selectStop(day,index){
 
-let stops = stopsByDay[day]
-let stop = stops[index]
+loadDay(day)
 
-/* remove previous stop marker */
+let stops=stopsByDay[day]
+let stop=stops[index]
 
-if(activeStopMarker){
-map.removeLayer(activeStopMarker)
-}
+if(activeStopMarker) map.removeLayer(activeStopMarker)
 
-/* add new stop marker */
-
-activeStopMarker = L.marker(stop.coords,{icon:bigIcon})
-.addTo(map)
-.bindPopup(
-"Arrival: "+formatTime(stop.start)+"<br>"+
-"Departure: "+formatTime(stop.end)
-)
-.openPopup()
-
-/* keep route visible */
-
-if(routeLine) map.removeLayer(routeLine)
-
-let routeCoords = stops.map(s=>s.coords)
-
-routeLine = L.polyline(routeCoords,{
-color:'blue',
-weight:4
-}).addTo(map)
-
-}
-
-/* add new stop marker */
-
-activeStopMarker = L.marker(stop.coords,{icon:bigIcon})
+activeStopMarker=L.marker(stop.coords,{icon:bigIcon})
 .addTo(map)
 .bindPopup(
 "Arrival: "+formatTime(stop.start)+"<br>"+
@@ -301,17 +289,8 @@ activeStopMarker = L.marker(stop.coords,{icon:bigIcon})
 
 }
 
-/* add new stop marker */
+/* JUMP TO DATE */
 
-activeStopMarker = L.marker(stop.coords,{icon:bigIcon})
-.addTo(map)
-.bindPopup(
-"Arrival: "+formatTime(stop.start)+"<br>"+
-"Departure: "+formatTime(stop.end)
-)
-.openPopup()
-
-}
 function jumpToDate(){
 
 let date=document.getElementById("dateJump").value
@@ -323,12 +302,10 @@ loadDay(date)
 let el=document.getElementById("day-"+date)
 
 if(el){
-
 el.scrollIntoView({
 behavior:"smooth",
 block:"start"
 })
-
 }
 
 }else{
