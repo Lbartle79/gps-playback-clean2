@@ -3,6 +3,264 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Timeline Map</title>
+<title>GPS Timeline Viewer</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaf
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<style>
+body{margin:0;font-family:Arial}
+
+#controls{
+padding:10px;
+background:#eee;
+}
+
+#map{
+height:55vh;
+}
+
+#timeline{
+height:40vh;
+overflow-y:auto;
+padding:10px;
+}
+
+.dayTitle{
+font-size:22px;
+font-weight:bold;
+margin-top:20px;
+cursor:pointer;
+}
+
+.stop{
+padding:10px;
+border-bottom:1px solid #ddd;
+cursor:pointer;
+}
+
+.stop:hover{
+background:#f0f0f0;
+}
+</style>
+</head>
+
+<body>
+
+<div id="controls">
+
+Jump to date
+<input type="date" id="dateJump">
+<button onclick="jumpToDate()">Go</button>
+
+</div>
+
+<div id="map"></div>
+<div id="timeline"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+
+/* MAP */
+
+let map=L.map('map').setView([53,-106],5)
+
+let base=L.tileLayer(
+'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+{maxZoom:19}
+).addTo(map)
+
+/* MARKERS */
+
+let startMarker=null
+let endMarker=null
+let activeMarker=null
+let routeLine=null
+
+let stopsByDay={}
+
+/* UTILITIES */
+
+function parseGeo(p){
+let c=p.replace("geo:","").split(",")
+return [parseFloat(c[0]),parseFloat(c[1])]
+}
+
+function formatTime(t){
+let d=new Date(t)
+
+return d.toLocaleTimeString('en-CA',{
+hour:'numeric',
+minute:'2-digit',
+hour12:true,
+timeZone:'America/Regina'
+})
+}
+
+function addStop(day,coords,start,end){
+
+if(!stopsByDay[day]) stopsByDay[day]=[]
+
+stopsByDay[day].push({
+coords:coords,
+start:start,
+end:end
+})
+}
+
+/* LOAD DATA */
+
+fetch('location-history.json')
+.then(r=>r.json())
+.then(data=>{
+
+data.forEach(item=>{
+
+/* movement */
+
+if(item.activity){
+
+let coords=parseGeo(item.activity.start)
+let day=item.startTime.slice(0,10)
+
+addStop(day,coords,item.startTime,item.endTime)
+
+}
+
+/* visit */
+
+if(item.visit){
+
+let coords=parseGeo(item.visit.topCandidate.placeLocation)
+let day=item.startTime.slice(0,10)
+
+addStop(day,coords,item.startTime,item.endTime)
+
+}
+
+})
+
+buildTimeline()
+
+})
+
+/* TIMELINE */
+
+function buildTimeline(){
+
+let timeline=document.getElementById("timeline")
+timeline.innerHTML=""
+
+Object.keys(stopsByDay).sort().forEach(day=>{
+
+let title=document.createElement("div")
+title.className="dayTitle"
+title.id="day-"+day
+title.innerText=day
+
+title.onclick=()=>loadDay(day)
+
+timeline.appendChild(title)
+
+stopsByDay[day]
+.sort((a,b)=> new Date(a.start)-new Date(b.start))
+.forEach((stop,i)=>{
+
+let div=document.createElement("div")
+div.className="stop"
+
+div.innerHTML=
+"Arrival: "+formatTime(stop.start)+"<br>"+
+"Departure: "+formatTime(stop.end)
+
+div.onclick=()=>selectStop(day,i)
+
+timeline.appendChild(div)
+
+})
+
+})
+
+}
+
+/* LOAD DAY */
+
+function loadDay(day){
+
+let stops=stopsByDay[day]
+if(!stops) return
+
+if(startMarker) map.removeLayer(startMarker)
+if(endMarker) map.removeLayer(endMarker)
+if(activeMarker) map.removeLayer(activeMarker)
+if(routeLine) map.removeLayer(routeLine)
+
+let first=stops[0]
+let last=stops[stops.length-1]
+
+startMarker=L.marker(first.coords).addTo(map)
+endMarker=L.marker(last.coords).addTo(map)
+
+let route=stops.map(s=>s.coords)
+
+routeLine=L.polyline(route,{
+color:'blue',
+weight:4
+}).addTo(map)
+
+map.fitBounds(L.latLngBounds(route),{padding:[40,40]})
+
+}
+
+/* SELECT STOP */
+
+function selectStop(day,i){
+
+loadDay(day)
+
+let stop=stopsByDay[day][i]
+
+if(activeMarker) map.removeLayer(activeMarker)
+
+activeMarker=L.marker(stop.coords)
+.addTo(map)
+.bindPopup(
+"Arrival: "+formatTime(stop.start)+"<br>"+
+"Departure: "+formatTime(stop.end)
+)
+.openPopup()
+
+}
+
+/* JUMP TO DATE */
+
+function jumpToDate(){
+
+let date=document.getElementById("dateJump").value
+
+if(stopsByDay[date]){
+
+loadDay(date)
+
+setTimeout(()=>{
+
+let el=document.getElementById("day-"+date)
+
+if(el){
+el.scrollIntoView({behavior:"smooth",block:"start"})
+}
+
+},150)
+
+}else{
+
+alert("No data for this date")
+
+}
+
+}
+
+</script>
+
+</body>
+</html>
