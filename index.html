@@ -242,11 +242,14 @@ if(item.timelinePath){
 
 item.timelinePath.forEach(p=>{
 
-let c=p.point.replace("geo:","").split(",")
+let c = p.point.replace("geo:","").split(",")
 
-addPoint(p.time,c[0],c[1],"breadcrumb")
+let t = p.time || p.timestamp || item.startTime
+
+addPoint(t, c[0], c[1], "breadcrumb")
 
 })
+
 }
 
 })
