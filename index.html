@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Forensic Location Timeline</title>
+<title>Location Timeline Map</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
@@ -11,22 +11,11 @@
 body{
 font-family:Arial;
 margin:0;
-background:#111;
-color:white;
 }
 
 #controls{
 padding:10px;
-background:#222;
-position:sticky;
-top:0;
-z-index:1000;
-}
-
-button{
-font-size:16px;
-padding:6px 10px;
-margin-right:5px;
+background:#eee;
 }
 
 #map{
@@ -37,19 +26,17 @@ height:60vh;
 height:40vh;
 overflow-y:scroll;
 padding:10px;
-background:#000;
 }
 
 .dayTitle{
 font-size:20px;
 margin-top:20px;
-color:#66ccff;
+font-weight:bold;
 }
 
 .entry{
 cursor:pointer;
 margin:4px 0;
-font-size:16px;
 }
 
 </style>
@@ -65,145 +52,93 @@ font-size:16px;
 </div>
 
 <div id="map"></div>
+
 <div id="timeline"></div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
 
-let map = L.map('map').setView([53.2,-105.7],7);
+let map=L.map('map').setView([53,-106],6)
 
 L.tileLayer(
 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
 {maxZoom:19}
-).addTo(map);
+).addTo(map)
 
-let markers=[];
-let allPoints=[];
-let days={};
+let markers=[]
+let days={}
+let points=[]
 
-function formatTime(date){
+function formatTime(d){
 
-let h=date.getHours();
-let m=date.getMinutes();
-let ampm=h>=12?"PM":"AM";
-
-h=h%12;
-if(h==0)h=12;
-
-return h+":"+m.toString().padStart(2,'0')+" "+ampm;
-
-}
-
-function addMarker(p){
-
-let marker=L.marker([p.lat,p.lon]).addTo(map);
-
-marker.bindPopup(
-"<b>"+p.type+"</b><br>"+
-p.time+"<br>"+
-p.lat+", "+p.lon
-);
-
-markers.push(marker);
+return new Date(d).toLocaleTimeString("en-CA",{
+timeZone:"America/Regina",
+hour:"numeric",
+minute:"2-digit",
+hour12:true
+})
 
 }
 
 function clearMarkers(){
 
-markers.forEach(m=>map.removeLayer(m));
-markers=[];
+markers.forEach(m=>map.removeLayer(m))
+markers=[]
+
+}
+
+function addMarker(p){
+
+let m=L.marker([p.lat,p.lon]).addTo(map)
+
+m.bindPopup(
+"<b>"+p.type+"</b><br>"+
+formatTime(p.time)+"<br>"+
+p.lat+", "+p.lon
+)
+
+markers.push(m)
 
 }
 
 function showDay(day){
 
-clearMarkers();
+clearMarkers()
 
-let list=days[day];
-
-list.forEach(p=>addMarker(p));
+days[day].forEach(p=>addMarker(p))
 
 }
 
 function jumpToDate(){
 
-let d=document.getElementById("jumpDate").value;
+let d=document.getElementById("jumpDate").value
 
 if(days[d]){
 
-showDay(d);
+showDay(d)
 
-document.getElementById(d).scrollIntoView();
-
-}
+document.getElementById(d).scrollIntoView()
 
 }
 
-function processPoint(time,lat,lon,type){
+}
 
-let d=new Date(time);
+function addPoint(time,lat,lon,type){
 
-let day=d.toISOString().split("T")[0];
+let d=new Date(time)
 
-let point={
-time:formatTime(d),
-lat:lat,
-lon:lon,
+let day=d.toISOString().split("T")[0]
+
+let p={
+time:d,
+lat:parseFloat(lat),
+lon:parseFloat(lon),
 type:type,
-date:day
-};
-
-allPoints.push(point);
-
+day:day
 }
 
-function buildDays(){
-
-allPoints.sort((a,b)=>new Date(a.time)-new Date(b.time));
-
-allPoints.forEach(p=>{
-
-if(!days[p.date])days[p.date]=[];
-
-days[p.date].push(p);
-
-});
-
-}
-
-function buildTimeline(){
-
-let div=document.getElementById("timeline");
-
-Object.keys(days).forEach(day=>{
-
-let title=document.createElement("div");
-title.className="dayTitle";
-title.id=day;
-title.innerText=day;
-
-div.appendChild(title);
-
-days[day].forEach(p=>{
-
-let e=document.createElement("div");
-e.className="entry";
-
-e.innerText=p.time+" — "+p.type;
-
-e.onclick=()=>{
-
-clearMarkers();
-addMarker(p);
-
-};
-
-div.appendChild(e);
-
-});
-
-});
+points.push(p)
 
 }
 
@@ -215,19 +150,19 @@ data.forEach(item=>{
 
 if(item.activity){
 
-let start=item.activity.start.replace("geo:","").split(",");
-let end=item.activity.end.replace("geo:","").split(",");
+let s=item.activity.start.replace("geo:","").split(",")
+let e=item.activity.end.replace("geo:","").split(",")
 
-processPoint(item.startTime,start[0],start[1],"movement start");
-processPoint(item.endTime,end[0],end[1],"movement end");
+addPoint(item.startTime,s[0],s[1],"movement start")
+addPoint(item.endTime,e[0],e[1],"movement end")
 
 }
 
 if(item.visit){
 
-let loc=item.visit.topCandidate.placeLocation.replace("geo:","").split(",");
+let c=item.visit.topCandidate.placeLocation.replace("geo:","").split(",")
 
-processPoint(item.startTime,loc[0],loc[1],"stop");
+addPoint(item.startTime,c[0],c[1],"stop")
 
 }
 
@@ -235,20 +170,66 @@ if(item.timelinePath){
 
 item.timelinePath.forEach(p=>{
 
-let coords=p.point.replace("geo:","").split(",");
+let c=p.point.replace("geo:","").split(",")
 
-processPoint(item.startTime,coords[0],coords[1],"breadcrumb");
+addPoint(item.startTime,c[0],c[1],"breadcrumb")
 
-});
+})
 
 }
 
-});
+})
 
-buildDays();
-buildTimeline();
+points.sort((a,b)=>a.time-b.time)
 
-});
+points.forEach(p=>{
+
+if(!days[p.day]) days[p.day]=[]
+
+days[p.day].push(p)
+
+})
+
+buildTimeline()
+
+})
+
+function buildTimeline(){
+
+let t=document.getElementById("timeline")
+
+Object.keys(days).forEach(day=>{
+
+let title=document.createElement("div")
+title.className="dayTitle"
+title.id=day
+title.innerText=day
+
+title.onclick=()=>showDay(day)
+
+t.appendChild(title)
+
+days[day].forEach(p=>{
+
+let e=document.createElement("div")
+e.className="entry"
+
+e.innerText=formatTime(p.time)+" — "+p.type
+
+e.onclick=()=>{
+
+clearMarkers()
+addMarker(p)
+
+}
+
+t.appendChild(e)
+
+})
+
+})
+
+}
 
 </script>
 
