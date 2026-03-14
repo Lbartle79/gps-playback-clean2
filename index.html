@@ -2,45 +2,56 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GPS Timeline Viewer</title>
+<title>Forensic Location Timeline</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
 <style>
-body{margin:0;font-family:Arial}
+
+body{
+font-family:Arial;
+margin:0;
+background:#111;
+color:white;
+}
 
 #controls{
 padding:10px;
-background:#eee;
+background:#222;
+position:sticky;
+top:0;
+z-index:1000;
+}
+
+button{
+font-size:16px;
+padding:6px 10px;
+margin-right:5px;
 }
 
 #map{
-height:55vh;
+height:60vh;
 }
 
 #timeline{
 height:40vh;
-overflow-y:auto;
+overflow-y:scroll;
 padding:10px;
+background:#000;
 }
 
 .dayTitle{
-font-size:22px;
-font-weight:bold;
+font-size:20px;
 margin-top:20px;
-cursor:pointer;
+color:#66ccff;
 }
 
-.stop{
-padding:10px;
-border-bottom:1px solid #ddd;
+.entry{
 cursor:pointer;
+margin:4px 0;
+font-size:16px;
 }
 
-.stop:hover{
-background:#f0f0f0;
-}
 </style>
 </head>
 
@@ -48,217 +59,196 @@ background:#f0f0f0;
 
 <div id="controls">
 
-Jump to date
-<input type="date" id="dateJump">
-<button onclick="jumpToDate()">Go</button>
+<input id="jumpDate" type="date">
+<button onclick="jumpToDate()">Jump To Date</button>
 
 </div>
 
 <div id="map"></div>
 <div id="timeline"></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
 
-/* MAP */
+let map = L.map('map').setView([53.2,-105.7],7);
 
-let map=L.map('map').setView([53,-106],5)
-
-let base=L.tileLayer(
+L.tileLayer(
 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
 {maxZoom:19}
-).addTo(map)
+).addTo(map);
 
-/* MARKERS */
+let markers=[];
+let allPoints=[];
+let days={};
 
-let startMarker=null
-let endMarker=null
-let activeMarker=null
-let routeLine=null
+function formatTime(date){
 
-let stopsByDay={}
+let h=date.getHours();
+let m=date.getMinutes();
+let ampm=h>=12?"PM":"AM";
 
-/* UTILITIES */
+h=h%12;
+if(h==0)h=12;
 
-function parseGeo(p){
-let c=p.replace("geo:","").split(",")
-return [parseFloat(c[0]),parseFloat(c[1])]
+return h+":"+m.toString().padStart(2,'0')+" "+ampm;
+
 }
 
-function formatTime(t){
-let d=new Date(t)
+function addMarker(p){
 
-return d.toLocaleTimeString('en-CA',{
-hour:'numeric',
-minute:'2-digit',
-hour12:true,
-timeZone:'America/Regina'
-})
+let marker=L.marker([p.lat,p.lon]).addTo(map);
+
+marker.bindPopup(
+"<b>"+p.type+"</b><br>"+
+p.time+"<br>"+
+p.lat+", "+p.lon
+);
+
+markers.push(marker);
+
 }
 
-function addStop(day,coords,start,end){
+function clearMarkers(){
 
-if(!stopsByDay[day]) stopsByDay[day]=[]
+markers.forEach(m=>map.removeLayer(m));
+markers=[];
 
-stopsByDay[day].push({
-coords:coords,
-start:start,
-end:end
-})
 }
 
-/* LOAD DATA */
+function showDay(day){
 
-fetch('location-history.json')
+clearMarkers();
+
+let list=days[day];
+
+list.forEach(p=>addMarker(p));
+
+}
+
+function jumpToDate(){
+
+let d=document.getElementById("jumpDate").value;
+
+if(days[d]){
+
+showDay(d);
+
+document.getElementById(d).scrollIntoView();
+
+}
+
+}
+
+function processPoint(time,lat,lon,type){
+
+let d=new Date(time);
+
+let day=d.toISOString().split("T")[0];
+
+let point={
+time:formatTime(d),
+lat:lat,
+lon:lon,
+type:type,
+date:day
+};
+
+allPoints.push(point);
+
+}
+
+function buildDays(){
+
+allPoints.sort((a,b)=>new Date(a.time)-new Date(b.time));
+
+allPoints.forEach(p=>{
+
+if(!days[p.date])days[p.date]=[];
+
+days[p.date].push(p);
+
+});
+
+}
+
+function buildTimeline(){
+
+let div=document.getElementById("timeline");
+
+Object.keys(days).forEach(day=>{
+
+let title=document.createElement("div");
+title.className="dayTitle";
+title.id=day;
+title.innerText=day;
+
+div.appendChild(title);
+
+days[day].forEach(p=>{
+
+let e=document.createElement("div");
+e.className="entry";
+
+e.innerText=p.time+" — "+p.type;
+
+e.onclick=()=>{
+
+clearMarkers();
+addMarker(p);
+
+};
+
+div.appendChild(e);
+
+});
+
+});
+
+}
+
+fetch("location-history.json")
 .then(r=>r.json())
 .then(data=>{
 
 data.forEach(item=>{
 
-/* movement */
-
 if(item.activity){
 
-let coords=parseGeo(item.activity.start)
-let day=item.startTime.slice(0,10)
+let start=item.activity.start.replace("geo:","").split(",");
+let end=item.activity.end.replace("geo:","").split(",");
 
-addStop(day,coords,item.startTime,item.endTime)
+processPoint(item.startTime,start[0],start[1],"movement start");
+processPoint(item.endTime,end[0],end[1],"movement end");
 
 }
-
-/* visit */
 
 if(item.visit){
 
-let coords=parseGeo(item.visit.topCandidate.placeLocation)
-let day=item.startTime.slice(0,10)
+let loc=item.visit.topCandidate.placeLocation.replace("geo:","").split(",");
 
-addStop(day,coords,item.startTime,item.endTime)
-
-}
-
-})
-
-buildTimeline()
-
-})
-
-/* TIMELINE */
-
-function buildTimeline(){
-
-let timeline=document.getElementById("timeline")
-timeline.innerHTML=""
-
-Object.keys(stopsByDay).sort().forEach(day=>{
-
-let title=document.createElement("div")
-title.className="dayTitle"
-title.id="day-"+day
-title.innerText=day
-
-title.onclick=()=>loadDay(day)
-
-timeline.appendChild(title)
-
-stopsByDay[day]
-.sort((a,b)=> new Date(a.start)-new Date(b.start))
-.forEach((stop,i)=>{
-
-let div=document.createElement("div")
-div.className="stop"
-
-div.innerHTML=
-"Arrival: "+formatTime(stop.start)+"<br>"+
-"Departure: "+formatTime(stop.end)
-
-div.onclick=()=>selectStop(day,i)
-
-timeline.appendChild(div)
-
-})
-
-})
+processPoint(item.startTime,loc[0],loc[1],"stop");
 
 }
 
-/* LOAD DAY */
+if(item.timelinePath){
 
-function loadDay(day){
+item.timelinePath.forEach(p=>{
 
-let stops=stopsByDay[day]
-if(!stops) return
+let coords=p.point.replace("geo:","").split(",");
 
-if(startMarker) map.removeLayer(startMarker)
-if(endMarker) map.removeLayer(endMarker)
-if(activeMarker) map.removeLayer(activeMarker)
-if(routeLine) map.removeLayer(routeLine)
+processPoint(item.startTime,coords[0],coords[1],"breadcrumb");
 
-let first=stops[0]
-let last=stops[stops.length-1]
-
-startMarker=L.marker(first.coords).addTo(map)
-endMarker=L.marker(last.coords).addTo(map)
-
-let route=stops.map(s=>s.coords)
-
-routeLine=L.polyline(route,{
-color:'blue',
-weight:4
-}).addTo(map)
-
-map.fitBounds(L.latLngBounds(route),{padding:[40,40]})
+});
 
 }
 
-/* SELECT STOP */
+});
 
-function selectStop(day,i){
+buildDays();
+buildTimeline();
 
-loadDay(day)
-
-let stop=stopsByDay[day][i]
-
-if(activeMarker) map.removeLayer(activeMarker)
-
-activeMarker=L.marker(stop.coords)
-.addTo(map)
-.bindPopup(
-"Arrival: "+formatTime(stop.start)+"<br>"+
-"Departure: "+formatTime(stop.end)
-)
-.openPopup()
-
-}
-
-/* JUMP TO DATE */
-
-function jumpToDate(){
-
-let date=document.getElementById("dateJump").value
-
-if(stopsByDay[date]){
-
-loadDay(date)
-
-setTimeout(()=>{
-
-let el=document.getElementById("day-"+date)
-
-if(el){
-el.scrollIntoView({behavior:"smooth",block:"start"})
-}
-
-},150)
-
-}else{
-
-alert("No data for this date")
-
-}
-
-}
+});
 
 </script>
 
