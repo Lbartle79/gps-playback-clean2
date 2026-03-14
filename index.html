@@ -244,10 +244,9 @@ item.timelinePath.forEach(p=>{
 
 let c=p.point.replace("geo:","").split(",")
 
-addPoint(item.startTime,c[0],c[1],"breadcrumb")
+addPoint(p.time,c[0],c[1],"breadcrumb")
 
 })
-
 }
 
 })
