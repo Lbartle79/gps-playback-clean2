@@ -106,7 +106,18 @@ function showDay(day){
 
 clearMarkers()
 
-days[day].forEach(p=>addMarker(p))
+let bounds=[]
+
+days[day].forEach(p=>{
+
+addMarker(p)
+bounds.push([p.lat,p.lon])
+
+})
+
+if(bounds.length>0){
+map.fitBounds(bounds)
+}
 
 }
 
