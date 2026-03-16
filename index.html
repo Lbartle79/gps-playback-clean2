@@ -193,7 +193,7 @@ fetch("location-history.json")
 .then(r=>r.json())
 .then(data=>{
 
-data.forEach(item=>{
+data.timelineObjects.forEach(item=>{
 
 if(item.activity){
 
