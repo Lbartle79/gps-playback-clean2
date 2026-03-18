@@ -50,108 +50,210 @@ Select Day:
 
 <script>
 
-let map = L.map('map').setView([54,-106],5)
+<script>
 
-L.tileLayer(
-'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-{maxZoom:19}
-).addTo(map)
+let STOP_DISTANCE_METERS = 50;
+let STOP_TIME_MINUTES = 10;
 
-let allPoints=[]
-let markers=[]
-let routeLine=null
+function toMillis(p) {
+    return new Date(p.timestamp).getTime();
+}
+
+function haversine(lat1, lon1, lat2, lon2) {
+    const R = 6371000;
+    const toRad = x => x * Math.PI / 180;
+    let dLat = toRad(lat2 - lat1);
+    let dLon = toRad(lon2 - lon1);
+    let a = Math.sin(dLat/2)**2 +
+        Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(dLon/2)**2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+let marker = null;
+let polyline = null;
+let currentIndex = 0;
+let timer = null;
+
+let map = L.map('map').setView([53.2, -105.7], 6);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19
+}).addTo(map);
+
+let daySelect = document.getElementById("daySelect");
+
+let data = { days:{} };
 
 fetch("location-history.json")
 .then(r=>r.json())
-.then(data=>{
+.then(raw=>{
 
-data.forEach(item=>{
+    // 🔥 BUILD DAYS STRUCTURE
+    raw.forEach(item=>{
 
-if(item.visit){
-let p=item.visit.topCandidate.placeLocation.replace("geo:","").split(",")
+        function addPoint(lat, lon, time){
+            let d = new Date(time);
+            let day = d.toISOString().slice(0,10);
 
-allPoints.push({
-lat:+p[0],
-lon:+p[1],
-time:new Date(item.startTime),
-type:"Stop"
-})
+            if(!data.days[day]) data.days[day]=[];
+
+            data.days[day].push({
+                lat:+lat,
+                lon:+lon,
+                timestamp:time
+            });
+        }
+
+        if(item.activity){
+            let s=item.activity.start.replace("geo:","").split(",");
+            let e=item.activity.end.replace("geo:","").split(",");
+
+            addPoint(s[0],s[1],item.startTime);
+            addPoint(e[0],e[1],item.endTime);
+        }
+
+        if(item.visit){
+            let c=item.visit.topCandidate.placeLocation.replace("geo:","").split(",");
+            addPoint(c[0],c[1],item.startTime);
+        }
+
+        if(item.timelinePath){
+            item.timelinePath.forEach(p=>{
+                let c=p.point.replace("geo:","").split(",");
+                addPoint(c[0],c[1],item.startTime);
+            });
+        }
+
+    });
+
+    // 🔥 SORT EACH DAY
+    for(let day in data.days){
+        data.days[day].sort((a,b)=>toMillis(a)-toMillis(b));
+
+        let option = document.createElement("option");
+        option.value = day;
+        option.text = day;
+        daySelect.appendChild(option);
+    }
+
+    loadDay(Object.keys(data.days)[0]);
+
+});
+
+function analyzeDay(points) {
+
+    let stops = [];
+
+    for (let i = 1; i < points.length; i++) {
+
+        let dist = haversine(
+            points[i-1].lat,
+            points[i-1].lon,
+            points[i].lat,
+            points[i].lon
+        );
+
+        let timeDiff = (toMillis(points[i]) - toMillis(points[i-1])) / 60000;
+
+        if (dist < STOP_DISTANCE_METERS && timeDiff >= STOP_TIME_MINUTES) {
+            stops.push({
+                lat: points[i].lat,
+                lon: points[i].lon,
+                arrival: new Date(points[i-1].timestamp),
+                departure: new Date(points[i].timestamp),
+                duration: timeDiff
+            });
+        }
+    }
+
+    return stops;
 }
 
-if(item.activity){
-let s=item.activity.start.replace("geo:","").split(",")
+function renderAnalysis(points) {
 
-allPoints.push({
-lat:+s[0],
-lon:+s[1],
-time:new Date(item.startTime),
-type:"Move"
-})
+    let timelineDiv = document.getElementById("timeline");
+    let summaryDiv = document.getElementById("summary");
+
+    timelineDiv.innerHTML = "";
+    summaryDiv.innerHTML = "";
+
+    let stops = analyzeDay(points);
+
+    summaryDiv.innerHTML = `
+        <strong>Total Stops:</strong> ${stops.length}
+        <hr>
+    `;
+
+    stops.forEach((stop, index) => {
+        let div = document.createElement("div");
+        div.className = "stop";
+
+        div.innerHTML = `
+            Stop ${index+1}<br>
+            ${stop.lat.toFixed(5)}, ${stop.lon.toFixed(5)}<br>
+            ${stop.duration.toFixed(1)} mins
+        `;
+
+        timelineDiv.appendChild(div);
+    });
 }
 
-})
+function loadDay(day) {
 
-allPoints.sort((a,b)=>a.time-b.time)
+    clearInterval(timer);
 
-// auto load first day
-let firstDay = allPoints[0].time.toISOString().slice(0,10)
-document.getElementById("dayPicker").value = firstDay
-loadDay(firstDay)
+    let points = data.days[day];
+    if (!points || points.length < 2) return;
 
-})
+    if (marker) map.removeLayer(marker);
+    if (polyline) map.removeLayer(polyline);
 
-function clearMap(){
-markers.forEach(m=>map.removeLayer(m))
-markers=[]
-if(routeLine) map.removeLayer(routeLine)
+    let latlngs = points.map(p => [p.lat, p.lon]);
+
+    polyline = L.polyline([], {color: 'blue'}).addTo(map);
+    marker = L.circleMarker(latlngs[0], {radius:6, color:'red'}).addTo(map);
+
+    map.fitBounds(latlngs);
+
+    currentIndex = 0;
+    window.currentPoints = points;
+
+    renderAnalysis(points);
 }
 
-function loadDay(day){
+function play() {
 
-clearMap()
+    let speed = document.getElementById("speed").value;
+    clearInterval(timer);
 
-let pts = allPoints.filter(p =>
-p.time.toISOString().slice(0,10) === day
-)
+    timer = setInterval(() => {
 
-let latlngs=[]
-let timeline=document.getElementById("timeline")
-timeline.innerHTML=""
+        if (currentIndex >= window.currentPoints.length) {
+            clearInterval(timer);
+            return;
+        }
 
-pts.forEach(p=>{
+        let p = window.currentPoints[currentIndex];
 
-let ll=[p.lat,p.lon]
-latlngs.push(ll)
+        polyline.addLatLng([p.lat, p.lon]);
+        marker.setLatLng([p.lat, p.lon]);
 
-let color = p.type==="Stop" ? "red" : "blue"
+        currentIndex++;
 
-let m = L.circleMarker(ll,{radius:5,color}).addTo(map)
-markers.push(m)
-
-m.bindPopup(p.time.toLocaleString()+"<br>"+p.type)
-
-let div=document.createElement("div")
-div.className="item"
-
-div.innerHTML=
-p.time.toLocaleTimeString()+" - "+p.type
-
-div.onclick=()=>map.setView(ll,14)
-
-timeline.appendChild(div)
-
-})
-
-if(latlngs.length>1){
-routeLine=L.polyline(latlngs,{color:"blue"}).addTo(map)
-map.fitBounds(routeLine.getBounds())
+    }, 1000 / speed);
 }
 
+function pause() {
+    clearInterval(timer);
 }
 
-document.getElementById("dayPicker").addEventListener("change",e=>{
-loadDay(e.target.value)
-})
+daySelect.addEventListener("change", function() {
+    loadDay(this.value);
+});
+
+</script>
 
 </script>
 
