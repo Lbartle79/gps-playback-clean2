@@ -88,7 +88,11 @@ type:"Movement"
 })
 
 allPoints.sort((a,b)=>a.time-b.time)
+let selectedDay = "2025-02-12"  // ← change this anytime
 
+allPoints = allPoints.filter(p =>
+p.time.toISOString().slice(0,10) === selectedDay
+)
 })
 
 function clearMap(){
