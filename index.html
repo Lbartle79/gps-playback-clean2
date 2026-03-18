@@ -2,14 +2,36 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Location Map Viewer</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<title>GPS Investigator Map</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
 <style>
-body{margin:0;font-family:Arial;}
-#map{height:60vh;}
-#timeline{height:40vh;overflow-y:auto;padding:10px;}
-.item{padding:8px;border-bottom:1px solid #ddd;cursor:pointer;}
+body{
+margin:0;
+font-family:Arial;
+}
+
+#map{
+height:60vh;
+}
+
+#timeline{
+height:40vh;
+overflow-y:auto;
+padding:10px;
+background:#f5f5f5;
+}
+
+.item{
+padding:8px;
+border-bottom:1px solid #ccc;
+cursor:pointer;
+}
+
+.item:hover{
+background:#ddd;
+}
 </style>
 </head>
 
@@ -18,16 +40,18 @@ body{margin:0;font-family:Arial;}
 <div id="map"></div>
 <div id="timeline"></div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
 <script>
 
-let map=L.map('map').setView([54,-106],5)
+let map = L.map('map').setView([54,-106],5)
 
 L.tileLayer(
 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
 {maxZoom:19}
 ).addTo(map)
 
-let points=[]
+let points = []
 
 fetch("location-history.json")
 .then(r=>r.json())
@@ -36,7 +60,6 @@ fetch("location-history.json")
 data.forEach(item=>{
 
 if(item.visit){
-
 let p=item.visit.topCandidate.placeLocation.replace("geo:","").split(",")
 
 points.push({
@@ -45,11 +68,9 @@ lon:parseFloat(p[1]),
 time:item.startTime,
 type:"Stop"
 })
-
 }
 
 if(item.activity){
-
 let s=item.activity.start.replace("geo:","").split(",")
 
 points.push({
@@ -58,16 +79,45 @@ lon:parseFloat(s[1]),
 time:item.startTime,
 type:"Movement"
 })
-
 }
 
 })
 
 points.sort((a,b)=>new Date(a.time)-new Date(b.time))
 
+drawMap()
 buildTimeline()
 
 })
+
+function drawMap(){
+
+let latlngs=[]
+
+points.forEach(p=>{
+
+let latlng=[p.lat,p.lon]
+latlngs.push(latlng)
+
+let color = p.type==="Stop" ? "red" : "blue"
+
+let marker = L.circleMarker(latlng,{
+radius:5,
+color:color
+}).addTo(map)
+
+marker.bindPopup(
+new Date(p.time).toLocaleString()+"<br>"+p.type
+)
+
+})
+
+if(latlngs.length>1){
+let route = L.polyline(latlngs,{color:"blue"}).addTo(map)
+map.fitBounds(route.getBounds())
+}
+
+}
 
 function buildTimeline(){
 
@@ -85,8 +135,7 @@ d.toLocaleDateString()+" "+
 d.toLocaleTimeString()+"<br>"+p.type
 
 div.onclick=()=>{
-map.panTo([p.lat,p.lon])
-L.marker([p.lat,p.lon]).addTo(map)
+map.setView([p.lat,p.lon],14)
 }
 
 t.appendChild(div)
