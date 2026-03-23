@@ -134,7 +134,7 @@ div.innerHTML =
 "<b>" + d.toLocaleDateString() + "</b><br>" +
 d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) + "<br>" +
 (p.type === "Start" ? "Start" :
- p.type === "End" ? "Stop" :
+ p.type === "End" ? "Stop" : "")
  p.type === "Movement Start" ? "Start" :
  p.type === "Movement End" ? "Stop" :
  p.type === "Stop" ? "Stop" : "")
