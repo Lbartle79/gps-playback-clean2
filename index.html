@@ -114,7 +114,22 @@ time:item.endTime
 
 // SORT
 points.sort((a,b)=>new Date(a.time)-new Date(b.time))
+async function getAddress(lat, lon){
 
+try{
+let res = await fetch(
+`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`
+)
+
+let data = await res.json()
+
+return data.display_name || "Unknown location"
+
+}catch{
+return "Address not found"
+}
+
+}
 buildTimeline()
 
 })
