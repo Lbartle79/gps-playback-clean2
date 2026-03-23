@@ -137,6 +137,8 @@ d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})+
 
 div.onclick=()=>{
 map.panTo([p.lat,p.lon])
+map.setZoom(14)
+window.scrollTo({top:0, behavior:"smooth"})
 L.marker([p.lat,p.lon]).addTo(map)
 }
 
