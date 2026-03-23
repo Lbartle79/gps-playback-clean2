@@ -140,10 +140,33 @@ d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})+
 "<br>"+p.type
 
 div.onclick=()=>{
-map.panTo([p.lat,p.lon])
-map.setZoom(14)
-window.scrollTo({top:0, behavior:"smooth"})
-L.marker([p.lat,p.lon]).addTo(map)
+// clear old markers
+activeMarkers.forEach(m => map.removeLayer(m))
+activeMarkers = []
+
+// clear old line
+if(activeLine){
+map.removeLayer(activeLine)
+}
+
+// get clicked day
+let clickedDate = new Date(p.time).toDateString()
+
+// get only that day's points
+let dayPoints = points.filter(x =>
+new Date(x.time).toDateString() === clickedDate
+)
+
+// build line for that day
+let latlngs = dayPoints.map(x => [x.lat, x.lon])
+activeLine = L.polyline(latlngs, {color:'cyan'}).addTo(map)
+
+// zoom to that day
+map.fitBounds(activeLine.getBounds())
+
+// add marker for clicked point
+let marker = L.marker([p.lat,p.lon]).addTo(map)
+activeMarkers.push(marker)
 }
 
 t.appendChild(div)
