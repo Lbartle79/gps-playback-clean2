@@ -115,8 +115,6 @@ time:item.endTime
 })
 
 points.sort((a,b)=>new Date(a.time)-new Date(b.time))
-  
-activeLine = L.polyline(latlngs, {color:'cyan'}).addTo(map)
 
 buildTimeline()
 
