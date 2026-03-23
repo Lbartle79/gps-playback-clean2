@@ -105,8 +105,7 @@ fetch("location-history.json")
 .then(r=>r.json())
 .then(json=>{
 
-json.forEach(item=>{
-
+json.timelineObjects.forEach(item=>{
 if(item.visit){
 
 let p=item.visit.topCandidate.placeLocation
