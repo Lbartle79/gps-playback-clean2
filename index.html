@@ -133,7 +133,7 @@ div.className="item"
 div.innerHTML =
 "<b>" + d.toLocaleDateString() + "</b><br>" +
 d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) + "<br>" +
-(p.type ? p.type : "Movement")
+p.type ? p.type : (p.time ? "Event" : "")
 div.onclick=()=>{
 
 // clear markers
