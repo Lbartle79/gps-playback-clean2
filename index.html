@@ -106,38 +106,37 @@ fetch("location-history.json")
 .then(json=>{
 
 json.timelineObjects.forEach(item=>{
-if(item.visit){
 
-let p=item.visit.topCandidate.placeLocation
-.replace("geo:","")
-.split(",")
+if(item.placeVisit){
+
+let loc=item.placeVisit.location
 
 points.push({
 type:"Stop",
-lat:parseFloat(p[0]),
-lon:parseFloat(p[1]),
-time:item.startTime
+lat:loc.latitudeE7 / 1e7,
+lon:loc.longitudeE7 / 1e7,
+time:item.placeVisit.duration.startTimestamp
 })
 
 }
 
-if(item.activity){
+if(item.activitySegment){
 
-let s=item.activity.start.replace("geo:","").split(",")
-let e=item.activity.end.replace("geo:","").split(",")
+let start=item.activitySegment.startLocation
+let end=item.activitySegment.endLocation
 
 points.push({
-type:"Movement Start",
-lat:parseFloat(s[0]),
-lon:parseFloat(s[1]),
-time:item.startTime
+type:"Move Start",
+lat:start.latitudeE7 / 1e7,
+lon:start.longitudeE7 / 1e7,
+time:item.activitySegment.duration.startTimestamp
 })
 
 points.push({
-type:"Movement End",
-lat:parseFloat(e[0]),
-lon:parseFloat(e[1]),
-time:item.endTime
+type:"Move End",
+lat:end.latitudeE7 / 1e7,
+lon:end.longitudeE7 / 1e7,
+time:item.activitySegment.duration.endTimestamp
 })
 
 }
