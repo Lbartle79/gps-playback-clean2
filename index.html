@@ -83,7 +83,7 @@ satellite=true
 }
 
 let points=[]
-
+let activeMarkers = []
 fetch("location-history.json")
 .then(r=>r.json())
 .then(json=>{
@@ -161,7 +161,11 @@ return
 let p=points[playIndex]
 
 map.panTo([p.lat,p.lon])
-L.circleMarker([p.lat,p.lon],{radius:6}).addTo(map)
+activeMarkers.forEach(m => map.removeLayer(m))
+activeMarkers = []
+
+let marker = L.circleMarker([p.lat,p.lon],{radius:6}).addTo(map)
+activeMarkers.push(marker)
 
 playIndex++
 
