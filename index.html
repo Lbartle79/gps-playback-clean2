@@ -178,7 +178,34 @@ map.removeLayer(activeLine)
 // get same day
 let dayPoints = sameDay
 
-let latlngs = dayPoints.map(x => [x.lat, x.lon])
+let latlngs = []
+
+for(let i = 0; i < dayPoints.length - 1; i++){
+
+let a = dayPoints[i]
+let b = dayPoints[i+1]
+
+let timeDiff = (new Date(b.time) - new Date(a.time)) / 1000 // seconds
+
+if(timeDiff <= 0) continue
+
+let distance = map.distance(
+[a.lat, a.lon],
+[b.lat, b.lon]
+)
+
+let speed = distance / timeDiff // meters/sec
+
+// 🚫 skip impossible jumps
+if(speed > 50) continue   // ~180 km/h
+
+// optional: also skip huge jumps entirely
+if(distance > 20000) continue // 20 km
+
+latlngs.push([a.lat, a.lon])
+latlngs.push([b.lat, b.lon])
+
+}
 
 // draw route
 activeLine = L.polyline(latlngs, {
