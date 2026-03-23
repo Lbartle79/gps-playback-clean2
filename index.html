@@ -84,6 +84,7 @@ satellite=true
 
 let points=[]
 let activeMarkers = []
+let activeLine = null
 fetch("location-history.json")
 .then(r=>r.json())
 .then(json=>{
