@@ -141,7 +141,14 @@ let t=document.getElementById("timeline")
 
 points.forEach(p=>{
 
-let d=new Date(p.time)
+let d = new Date(p.time)
+
+// force correct local display
+let dateStr = d.toLocaleDateString('en-CA')
+let timeStr = d.toLocaleTimeString([], {
+hour:'2-digit',
+minute:'2-digit'
+})
 
 // GROUP POINTS BY DAY
 let sameDay = points.filter(x =>
