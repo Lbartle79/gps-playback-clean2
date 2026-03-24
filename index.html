@@ -136,7 +136,35 @@ buildTimeline()
 
 // TIMELINE
 function buildTimeline(){
+function jumpToDate(){
 
+let input = document.getElementById("dateJump").value
+if(!input) return
+
+let items = document.getElementsByClassName("item")
+
+for(let i=0;i<points.length;i++){
+
+let d = new Date(points[i].time)
+let localDate = d.toISOString().split('T')[0]
+
+if(localDate === input){
+
+items[i].scrollIntoView({
+behavior:"smooth",
+block:"start"
+})
+
+items[i].click()
+
+return
+}
+
+}
+
+alert("No data for that date")
+
+}
 let t=document.getElementById("timeline")
 
 points.forEach(p=>{
