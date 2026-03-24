@@ -65,71 +65,21 @@ let points = []
 let activeMarkers = []
 let activeLine = null
 
-fetch("location-history.json")
-.then(r=>r.json())
-.then(json=>{
+let points = [
+{lat:51.631540,lon:-109.977654,time:1739134447162},
+{lat:51.631720,lon:-109.977780,time:1739134500000},
+{lat:51.631900,lon:-109.977900,time:1739134550000},
+{lat:51.632200,lon:-109.978000,time:1739134600000},
+{lat:51.632983,lon:-109.978113,time:1739135755018},
 
-json.forEach(item=>{
+{lat:51.631895,lon:-109.977994,time:1739135755018},
+{lat:51.631890,lon:-109.900000,time:1739200000000},
+{lat:51.631880,lon:-109.800000,time:1739250000000},
+{lat:51.631870,lon:-109.700000,time:1739280000000},
+{lat:51.631860,lon:-109.594927,time:1739294193713}
+];
 
-// SAFE timestamp helper
-function getTime(obj, key1, key2){
-if(obj[key1]) return parseInt(obj[key1])
-if(obj[key2]) return new Date(obj[key2]).getTime()
-return null
-}
-
-// ACTIVITY
-if(item.activity){
-
-let s=item.activity.start.replace("geo:","").split(",")
-let e=item.activity.end.replace("geo:","").split(",")
-
-let startTime = getTime(item, "startTimestampMs", "startTime")
-let endTime   = getTime(item, "endTimestampMs", "endTime")
-
-if(startTime && endTime){
-
-points.push({
-lat:parseFloat(s[0]),
-lon:parseFloat(s[1]),
-time:startTime
-})
-
-points.push({
-lat:parseFloat(e[0]),
-lon:parseFloat(e[1]),
-time:endTime
-})
-
-}
-
-}
-
-// VISITS
-if(item.visit){
-
-let p=item.visit.topCandidate.placeLocation
-.replace("geo:","")
-.split(",")
-
-let startTime = getTime(item, "startTimestampMs", "startTime")
-
-if(startTime){
-points.push({
-lat:parseFloat(p[0]),
-lon:parseFloat(p[1]),
-time:startTime
-})
-}
-
-}
-
-})
-
-// SORT CORRECTLY
-points.sort((a,b)=>a.time - b.time)
-
-buildTimeline()
+buildTimeline();
 
 })
 
