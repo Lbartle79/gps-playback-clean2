@@ -4,36 +4,17 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 
-<title>GPS Timeline</title>
+<title>GPS Timeline (Stable)</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <style>
 body { margin:0; font-family:Arial; }
-
-#controls {
-padding:10px;
-background:#f0f0f0;
-border-bottom:1px solid #ccc;
-}
-
+#controls { padding:10px; background:#f0f0f0; border-bottom:1px solid #ccc; }
 #map { height:50vh; }
-
-#timeline {
-height:50vh;
-overflow-y:auto;
-padding:10px;
-background:#fafafa;
-font-size:18px;
-}
-
-.item {
-padding:10px;
-border-bottom:1px solid #ddd;
-cursor:pointer;
-}
-
+#timeline { height:50vh; overflow-y:auto; padding:10px; background:#fafafa; }
+.item { padding:10px; border-bottom:1px solid #ddd; cursor:pointer; }
 .item:hover { background:#eee; }
 </style>
 </head>
@@ -67,7 +48,6 @@ let sat = L.tileLayer(
 )
 
 let satellite = false
-
 function toggleSatellite(){
 if(satellite){
 map.removeLayer(sat)
@@ -85,12 +65,18 @@ let points = []
 let activeMarkers = []
 let activeLine = null
 
-// LOAD DATA
 fetch("location-history.json")
 .then(r=>r.json())
 .then(json=>{
 
 json.forEach(item=>{
+
+// SAFE timestamp helper
+function getTime(obj, key1, key2){
+if(obj[key1]) return parseInt(obj[key1])
+if(obj[key2]) return new Date(obj[key2]).getTime()
+return null
+}
 
 // ACTIVITY
 if(item.activity){
@@ -98,17 +84,24 @@ if(item.activity){
 let s=item.activity.start.replace("geo:","").split(",")
 let e=item.activity.end.replace("geo:","").split(",")
 
+let startTime = getTime(item, "startTimestampMs", "startTime")
+let endTime   = getTime(item, "endTimestampMs", "endTime")
+
+if(startTime && endTime){
+
 points.push({
 lat:parseFloat(s[0]),
 lon:parseFloat(s[1]),
-time:parseInt(item.startTimestampMs)
+time:startTime
 })
 
 points.push({
 lat:parseFloat(e[0]),
 lon:parseFloat(e[1]),
-time:parseInt(item.endTimestampMs)
+time:endTime
 })
+
+}
 
 }
 
@@ -119,49 +112,28 @@ let p=item.visit.topCandidate.placeLocation
 .replace("geo:","")
 .split(",")
 
+let startTime = getTime(item, "startTimestampMs", "startTime")
+
+if(startTime){
 points.push({
 lat:parseFloat(p[0]),
 lon:parseFloat(p[1]),
-time:parseInt(item.startTimestampMs)
+time:startTime
 })
+}
 
 }
 
 })
 
-points.push({
-lat:parseFloat(e[0]),
-lon:parseFloat(e[1]),
-time:item.endTime
-})
-
-}
-
-// VISITS (stops)
-if(item.visit){
-
-let p=item.visit.topCandidate.placeLocation
-.replace("geo:","")
-.split(",")
-
-points.push({
-lat:parseFloat(p[0]),
-lon:parseFloat(p[1]),
-time:item.startTime
-})
-
-}
-
-})
-
-// SORT
-points.sort((a,b)=>new Date(a.time)-new Date(b.time))
+// SORT CORRECTLY
+points.sort((a,b)=>a.time - b.time)
 
 buildTimeline()
 
 })
 
-// JUMP FUNCTION (FIXED)
+// JUMP (fixed)
 function jumpToDate(){
 
 let input = document.getElementById("dateJump").value
@@ -172,24 +144,18 @@ let items = document.getElementsByClassName("item")
 for(let i=0;i<points.length;i++){
 
 let d = new Date(points[i].time)
-let localDate = d.toISOString().split('T')[0]
+let localDate = d.toLocaleDateString('en-CA')
 
 if(localDate === input){
 
-items[i].scrollIntoView({
-behavior:"smooth",
-block:"start"
-})
-
+items[i].scrollIntoView({behavior:"smooth"})
 items[i].click()
-
 return
 }
 
 }
 
 alert("No data for that date")
-
 }
 
 // TIMELINE
@@ -201,25 +167,19 @@ points.forEach(p=>{
 
 let d = new Date(p.time)
 
-// FIXED TIME DISPLAY
 let dateStr = d.toLocaleDateString('en-CA')
-let timeStr = d.toLocaleTimeString([], {
-hour:'2-digit',
-minute:'2-digit'
-})
+let timeStr = d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})
 
-// GROUP BY DAY
+// GROUP
 let sameDay = points.filter(x =>
-new Date(x.time).toDateString() === d.toDateString()
+new Date(x.time).toLocaleDateString('en-CA') === dateStr
 )
 
-// LABEL
 let label =
 (p === sameDay[0]) ? "Start" :
 (p === sameDay[sameDay.length - 1]) ? "Stop" :
 "Movement"
 
-// ITEM
 let div=document.createElement("div")
 div.className="item"
 
@@ -228,7 +188,6 @@ div.innerHTML =
 timeStr + "<br>" +
 label
 
-// CLICK
 div.onclick=()=>{
 
 activeMarkers.forEach(m => map.removeLayer(m))
@@ -238,7 +197,6 @@ if(activeLine){
 map.removeLayer(activeLine)
 }
 
-// FILTER ROUTE
 let latlngs = []
 
 for(let i = 0; i < sameDay.length - 1; i++){
@@ -246,7 +204,7 @@ for(let i = 0; i < sameDay.length - 1; i++){
 let a = sameDay[i]
 let b = sameDay[i+1]
 
-let timeDiff = (new Date(b.time) - new Date(a.time)) / 1000
+let timeDiff = (b.time - a.time) / 1000
 if(timeDiff <= 0) continue
 
 let distance = map.distance([a.lat,a.lon],[b.lat,b.lon])
@@ -268,12 +226,9 @@ weight:4
 map.fitBounds(activeLine.getBounds())
 }
 
-// MARKER
 let marker = L.marker([p.lat,p.lon]).addTo(map)
 activeMarkers.push(marker)
 
-// SCROLL
-window.scrollTo({top:0, behavior:"smooth"})
 }
 
 t.appendChild(div)
