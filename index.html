@@ -92,7 +92,7 @@ fetch("location-history.json")
 
 json.forEach(item=>{
 
-// ACTIVITY (movement)
+// ACTIVITY
 if(item.activity){
 
 let s=item.activity.start.replace("geo:","").split(",")
@@ -101,7 +101,32 @@ let e=item.activity.end.replace("geo:","").split(",")
 points.push({
 lat:parseFloat(s[0]),
 lon:parseFloat(s[1]),
-time:item.startTime
+time:parseInt(item.startTimestampMs)
+})
+
+points.push({
+lat:parseFloat(e[0]),
+lon:parseFloat(e[1]),
+time:parseInt(item.endTimestampMs)
+})
+
+}
+
+// VISITS
+if(item.visit){
+
+let p=item.visit.topCandidate.placeLocation
+.replace("geo:","")
+.split(",")
+
+points.push({
+lat:parseFloat(p[0]),
+lon:parseFloat(p[1]),
+time:parseInt(item.startTimestampMs)
+})
+
+}
+
 })
 
 points.push({
