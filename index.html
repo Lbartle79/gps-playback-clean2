@@ -71,14 +71,18 @@ let points = [
 {lat:51.631720,lon:-109.977780,time:1739134500000},
 {lat:51.631900,lon:-109.977900,time:1739134550000},
 {lat:51.632200,lon:-109.978000,time:1739134600000},
-{lat:51.632983,lon:-109.978113,time:1739135755018},
-
-{lat:51.631895,lon:-109.977994,time:1739135755018},
-{lat:51.631890,lon:-109.900000,time:1739200000000},
-{lat:51.631880,lon:-109.800000,time:1739250000000},
-{lat:51.631870,lon:-109.700000,time:1739280000000},
-{lat:51.631860,lon:-109.594927,time:1739294193713}
+{lat:51.632983,lon:-109.978113,time:1739135755018}
 ];
+
+// ✅ CRITICAL: make time readable
+points = points.map(p => ({
+  lat: p.lat,
+  lon: p.lon,
+  time: new Date(p.time)
+}));
+
+// ✅ sort AFTER conversion
+points.sort((a,b)=> a.time - b.time);
 
 buildTimeline();
 
