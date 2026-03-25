@@ -4,19 +4,46 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 
-<title>GPS Timeline (Full Real Data)</title>
+<title>GPS Timeline (Fixed)</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <style>
 body { margin:0; font-family:Arial; }
-#controls { padding:10px; background:#f0f0f0; border-bottom:1px solid #ccc; }
-#map { height:50vh; }
-#timeline { height:50vh; overflow-y:auto; padding:10px; background:#fafafa; }
-.item { padding:10px; border-bottom:1px solid #ddd; cursor:pointer; }
+
+/* 🔥 CONTROLS ALWAYS VISIBLE */
+#controls {
+position: fixed;
+top: 0;
+left: 0;
+width: 100%;
+z-index: 9999;
+padding:10px;
+background:#f0f0f0;
+border-bottom:1px solid #ccc;
+}
+
+/* push content below controls */
+#map {
+height:50vh;
+margin-top:70px;
+}
+
+#timeline {
+height:50vh;
+overflow-y:auto;
+padding:10px;
+background:#fafafa;
+}
+
+.item {
+padding:10px;
+border-bottom:1px solid #ddd;
+cursor:pointer;
+}
+
 .item:hover { background:#eee; }
-.small { font-size:14px; color:#555; }
 </style>
 </head>
 
@@ -24,6 +51,7 @@ body { margin:0; font-family:Arial; }
 
 <div id="controls">
 <button onclick="toggleSatellite()">Satellite</button>
+
 <label style="margin-left:10px;">Jump to date:</label>
 <input type="date" id="dateJump">
 <button onclick="jumpToDate()">Go</button>
@@ -34,7 +62,7 @@ body { margin:0; font-family:Arial; }
 
 <script>
 
-// MAP
+// ================= MAP =================
 let map = L.map('map').setView([54,-106],5)
 
 let road = L.tileLayer(
@@ -48,6 +76,7 @@ let sat = L.tileLayer(
 )
 
 let satellite = false
+
 function toggleSatellite(){
 if(satellite){
 map.removeLayer(sat)
@@ -60,9 +89,7 @@ satellite=true
 }
 }
 
-// =====================
-// LOAD REAL DATA
-// =====================
+// ================= DATA =================
 
 let points = []
 let activeMarkers = []
@@ -74,41 +101,33 @@ fetch("location-history.json")
 
 data.forEach(item=>{
 
-// ACTIVITY SEGMENTS
 if(item.activity){
 
 let s = item.activity.start.replace("geo:","").split(",")
 let e = item.activity.end.replace("geo:","").split(",")
 
-let startTime = new Date(item.startTime).getTime()
-let endTime = new Date(item.endTime).getTime()
-
-let steps = Math.min(50, Math.max(5, Math.floor((endTime-startTime)/(1000*60*10))))
-
-for(let i=0;i<=steps;i++){
-
-let t = i/steps
+points.push({
+lat:parseFloat(s[0]),
+lon:parseFloat(s[1]),
+time:new Date(item.startTime)
+})
 
 points.push({
-lat: parseFloat(s[0]) + (parseFloat(e[0])-parseFloat(s[0])) * t,
-lon: parseFloat(s[1]) + (parseFloat(e[1])-parseFloat(s[1])) * t,
-time: new Date(startTime + (endTime-startTime)*t)
+lat:parseFloat(e[0]),
+lon:parseFloat(e[1]),
+time:new Date(item.endTime)
 })
 
 }
 
-}
-
-// VISITS (stops)
 if(item.visit){
 
 let loc = item.visit.topCandidate.placeLocation.replace("geo:","").split(",")
-let startTime = new Date(item.startTime).getTime()
 
 points.push({
-lat: parseFloat(loc[0]),
-lon: parseFloat(loc[1]),
-time: new Date(startTime)
+lat:parseFloat(loc[0]),
+lon:parseFloat(loc[1]),
+time:new Date(item.startTime)
 })
 
 }
@@ -122,9 +141,7 @@ buildTimeline()
 
 })
 
-// =====================
-// ADDRESS CACHE
-// =====================
+// ================= ADDRESS =================
 
 let addressCache = {}
 
@@ -139,6 +156,7 @@ let res = await fetch(
 `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`
 )
 let data = await res.json()
+
 let addr = data.display_name || "Unknown location"
 
 addressCache[key] = addr
@@ -149,16 +167,14 @@ return "Address unavailable"
 }
 }
 
-// =====================
-// TIMELINE
-// =====================
+// ================= TIMELINE =================
 
 function buildTimeline(){
 
 let t=document.getElementById("timeline")
 t.innerHTML=""
 
-points.forEach(p=>{
+points.forEach((p,i)=>{
 
 let d = p.time
 
@@ -168,14 +184,15 @@ div.className="item"
 div.innerHTML =
 "<b>" + d.toLocaleDateString('en-CA') + "</b><br>" +
 d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) +
-"<div class='small'>" +
+"<div style='font-size:14px;color:#555'>" +
 "Lat: " + p.lat.toFixed(5) + "<br>" +
 "Lon: " + p.lon.toFixed(5) + "<br>" +
 "Loading address..." +
 "</div>"
 
+// load address
 getAddress(p.lat,p.lon).then(addr=>{
-div.querySelector(".small").innerHTML =
+div.querySelector("div").innerHTML =
 "Lat: " + p.lat.toFixed(5) + "<br>" +
 "Lon: " + p.lon.toFixed(5) + "<br>" +
 addr
@@ -201,9 +218,7 @@ t.appendChild(div)
 
 }
 
-// =====================
-// JUMP
-// =====================
+// ================= JUMP =================
 
 function jumpToDate(){
 
@@ -217,7 +232,7 @@ for(let i=0;i<points.length;i++){
 let d = points[i].time.toLocaleDateString('en-CA')
 
 if(d === input){
-items[i].scrollIntoView({behavior:"smooth"})
+items[i].scrollIntoView({behavior:"smooth", block:"start"})
 items[i].click()
 return
 }
