@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 
-<title>GPS Timeline (Stable)</title>
+<title>GPS Timeline (Final Stable)</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -48,6 +48,7 @@ let sat = L.tileLayer(
 )
 
 let satellite = false
+
 function toggleSatellite(){
 if(satellite){
 map.removeLayer(sat)
@@ -60,32 +61,58 @@ satellite=true
 }
 }
 
-// DATA
+// =====================
+// CLEAN REBUILT DATA
+// =====================
+
+let rawSegments = [
+{start:[51.631540,-109.977654],end:[51.632983,-109.978113],startTime:1739134447162,endTime:1739135755018},
+{start:[51.631895,-109.977994],end:[51.631860,-109.594927],startTime:1739135755018,endTime:1739294193713},
+{start:[51.634805,-109.619287],end:[51.648845,-109.663609],startTime:1739294193713,endTime:1739328329043}
+];
+
+let points = [];
+
+// expand segments into smooth timeline points
+rawSegments.forEach(seg => {
+
+let steps = 12;
+
+for(let i=0;i<=steps;i++){
+
+let t = i/steps;
+
+let lat = seg.start[0] + (seg.end[0]-seg.start[0]) * t;
+let lon = seg.start[1] + (seg.end[1]-seg.start[1]) * t;
+
+let time = seg.startTime + (seg.endTime - seg.startTime) * t;
+
+points.push({
+lat,
+lon,
+time: new Date(time)
+});
+
+}
+
+});
+
+// sort points
+points.sort((a,b)=> a.time - b.time);
+
+// =====================
+// MAP + TIMELINE
+// =====================
+
 let activeMarkers = []
 let activeLine = null
 
-let points = [
-{lat:51.631540,lon:-109.977654,time:1739134447162},
-{lat:51.631720,lon:-109.977780,time:1739134500000},
-{lat:51.631900,lon:-109.977900,time:1739134550000},
-{lat:51.632200,lon:-109.978000,time:1739134600000},
-{lat:51.632983,lon:-109.978113,time:1739135755018}
-];
-
-// ✅ CRITICAL: make time readable
-points = points.map(p => ({
-  lat: p.lat,
-  lon: p.lon,
-  time: new Date(p.time)
-}));
-
-// ✅ sort AFTER conversion
-points.sort((a,b)=> a.time - b.time);
-
 buildTimeline();
 
+// =====================
+// JUMP TO DATE
+// =====================
 
-// JUMP (fixed)
 function jumpToDate(){
 
 let input = document.getElementById("dateJump").value
@@ -95,7 +122,7 @@ let items = document.getElementsByClassName("item")
 
 for(let i=0;i<points.length;i++){
 
-let d = new Date(points[i].time)
+let d = points[i].time
 let localDate = d.toLocaleDateString('en-CA')
 
 if(localDate === input){
@@ -110,21 +137,25 @@ return
 alert("No data for that date")
 }
 
+// =====================
 // TIMELINE
+// =====================
+
 function buildTimeline(){
 
 let t=document.getElementById("timeline")
+t.innerHTML = ""
 
 points.forEach(p=>{
 
-let d = new Date(p.time)
+let d = p.time
 
 let dateStr = d.toLocaleDateString('en-CA')
 let timeStr = d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})
 
-// GROUP
+// group same day
 let sameDay = points.filter(x =>
-new Date(x.time).toLocaleDateString('en-CA') === dateStr
+x.time.toLocaleDateString('en-CA') === dateStr
 )
 
 let label =
@@ -142,6 +173,7 @@ label
 
 div.onclick=()=>{
 
+// clear map
 activeMarkers.forEach(m => map.removeLayer(m))
 activeMarkers = []
 
@@ -149,6 +181,7 @@ if(activeLine){
 map.removeLayer(activeLine)
 }
 
+// build route
 let latlngs = []
 
 for(let i = 0; i < sameDay.length - 1; i++){
@@ -169,6 +202,7 @@ latlngs.push([a.lat,a.lon])
 latlngs.push([b.lat,b.lon])
 }
 
+// draw route
 if(latlngs.length > 1){
 activeLine = L.polyline(latlngs, {
 color:'cyan',
@@ -178,6 +212,7 @@ weight:4
 map.fitBounds(activeLine.getBounds())
 }
 
+// marker
 let marker = L.marker([p.lat,p.lon]).addTo(map)
 activeMarkers.push(marker)
 
