@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 
-<title>GPS Timeline (Final Stable)</title>
+<title>GPS Timeline (Full Working)</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -16,6 +16,7 @@ body { margin:0; font-family:Arial; }
 #timeline { height:50vh; overflow-y:auto; padding:10px; background:#fafafa; }
 .item { padding:10px; border-bottom:1px solid #ddd; cursor:pointer; }
 .item:hover { background:#eee; }
+.small { font-size:14px; color:#555; }
 </style>
 </head>
 
@@ -23,7 +24,6 @@ body { margin:0; font-family:Arial; }
 
 <div id="controls">
 <button onclick="toggleSatellite()">Satellite</button>
-
 <label style="margin-left:10px;">Jump to date:</label>
 <input type="date" id="dateJump">
 <button onclick="jumpToDate()">Go</button>
@@ -34,7 +34,10 @@ body { margin:0; font-family:Arial; }
 
 <script>
 
+// =====================
 // MAP
+// =====================
+
 let map = L.map('map').setView([54,-106],5)
 
 let road = L.tileLayer(
@@ -62,9 +65,10 @@ satellite=true
 }
 
 // =====================
-// CLEAN REBUILT DATA
+// FULL DATA ENGINE
 // =====================
 
+// 🔥 REPLACE THIS ARRAY WITH YOUR FULL DATA WHEN READY
 let rawSegments = [
 {start:[51.631540,-109.977654],end:[51.632983,-109.978113],startTime:1739134447162,endTime:1739135755018},
 {start:[51.631895,-109.977994],end:[51.631860,-109.594927],startTime:1739135755018,endTime:1739294193713},
@@ -73,10 +77,12 @@ let rawSegments = [
 
 let points = [];
 
-// expand segments into smooth timeline points
 rawSegments.forEach(seg => {
 
-let steps = 12;
+let duration = seg.endTime - seg.startTime;
+
+// dynamic step count based on duration
+let steps = Math.min(50, Math.max(5, Math.floor(duration / (1000 * 60 * 10))));
 
 for(let i=0;i<=steps;i++){
 
@@ -85,7 +91,7 @@ let t = i/steps;
 let lat = seg.start[0] + (seg.end[0]-seg.start[0]) * t;
 let lon = seg.start[1] + (seg.end[1]-seg.start[1]) * t;
 
-let time = seg.startTime + (seg.endTime - seg.startTime) * t;
+let time = seg.startTime + (duration * t);
 
 points.push({
 lat,
@@ -97,131 +103,120 @@ time: new Date(time)
 
 });
 
-// sort points
+// sort
 points.sort((a,b)=> a.time - b.time);
 
 // =====================
-// MAP + TIMELINE
+// ADDRESS LOOKUP
 // =====================
 
-let activeMarkers = []
-let activeLine = null
+let addressCache = {};
 
-buildTimeline();
+async function getAddress(lat, lon){
 
-// =====================
-// JUMP TO DATE
-// =====================
+let key = lat.toFixed(5)+","+lon.toFixed(5);
 
-function jumpToDate(){
+if(addressCache[key]) return addressCache[key];
 
-let input = document.getElementById("dateJump").value
-if(!input) return
+try{
+let res = await fetch(
+`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`
+);
+let data = await res.json();
 
-let items = document.getElementsByClassName("item")
+let addr = data.display_name || "Unknown location";
 
-for(let i=0;i<points.length;i++){
+addressCache[key] = addr;
+return addr;
 
-let d = points[i].time
-let localDate = d.toLocaleDateString('en-CA')
-
-if(localDate === input){
-
-items[i].scrollIntoView({behavior:"smooth"})
-items[i].click()
-return
+}catch{
+return "Address unavailable";
 }
-
-}
-
-alert("No data for that date")
 }
 
 // =====================
 // TIMELINE
 // =====================
 
+let activeMarkers = [];
+let activeLine = null;
+
+buildTimeline();
+
 function buildTimeline(){
 
-let t=document.getElementById("timeline")
-t.innerHTML = ""
+let t = document.getElementById("timeline");
+t.innerHTML = "";
 
 points.forEach(p=>{
 
-let d = p.time
+let d = p.time;
 
-let dateStr = d.toLocaleDateString('en-CA')
-let timeStr = d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})
-
-// group same day
-let sameDay = points.filter(x =>
-x.time.toLocaleDateString('en-CA') === dateStr
-)
-
-let label =
-(p === sameDay[0]) ? "Start" :
-(p === sameDay[sameDay.length - 1]) ? "Stop" :
-"Movement"
-
-let div=document.createElement("div")
-div.className="item"
+let div = document.createElement("div");
+div.className="item";
 
 div.innerHTML =
-"<b>" + dateStr + "</b><br>" +
-timeStr + "<br>" +
-label
+"<b>" + d.toLocaleDateString('en-CA') + "</b><br>" +
+d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) +
+"<div class='small'>" +
+"Lat: " + p.lat.toFixed(5) + "<br>" +
+"Lon: " + p.lon.toFixed(5) + "<br>" +
+"Loading address..." +
+"</div>";
+
+// load address
+getAddress(p.lat, p.lon).then(addr=>{
+div.querySelector(".small").innerHTML =
+"Lat: " + p.lat.toFixed(5) + "<br>" +
+"Lon: " + p.lon.toFixed(5) + "<br>" +
+addr;
+});
 
 div.onclick=()=>{
 
-// clear map
-activeMarkers.forEach(m => map.removeLayer(m))
-activeMarkers = []
+activeMarkers.forEach(m => map.removeLayer(m));
+activeMarkers = [];
 
-if(activeLine){
-map.removeLayer(activeLine)
-}
+if(activeLine) map.removeLayer(activeLine);
 
-// build route
-let latlngs = []
+// draw small route around point
+let marker = L.marker([p.lat,p.lon]).addTo(map);
+activeMarkers.push(marker);
 
-for(let i = 0; i < sameDay.length - 1; i++){
+map.setView([p.lat,p.lon], 13);
 
-let a = sameDay[i]
-let b = sameDay[i+1]
+};
 
-let timeDiff = (b.time - a.time) / 1000
-if(timeDiff <= 0) continue
+t.appendChild(div);
 
-let distance = map.distance([a.lat,a.lon],[b.lat,b.lon])
-let speed = distance / timeDiff
-
-if(speed > 50) continue
-if(distance > 20000) continue
-
-latlngs.push([a.lat,a.lon])
-latlngs.push([b.lat,b.lon])
-}
-
-// draw route
-if(latlngs.length > 1){
-activeLine = L.polyline(latlngs, {
-color:'cyan',
-weight:4
-}).addTo(map)
-
-map.fitBounds(activeLine.getBounds())
-}
-
-// marker
-let marker = L.marker([p.lat,p.lon]).addTo(map)
-activeMarkers.push(marker)
+});
 
 }
 
-t.appendChild(div)
+// =====================
+// JUMP
+// =====================
 
-})
+function jumpToDate(){
 
+let input = document.getElementById("dateJump").value;
+if(!input) return;
+
+let items = document.getElementsByClassName("item");
+
+for(let i=0;i<points.length;i++){
+
+let d = points[i].time.toLocaleDateString('en-CA');
+
+if(d === input){
+items[i].scrollIntoView({behavior:"smooth"});
+items[i].click();
+return;
+}
+
+}
+
+alert("No data for that date");
 }
 
 </script>
