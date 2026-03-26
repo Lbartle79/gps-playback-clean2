@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 
-<title>GPS Timeline (Fixed)</title>
+<title>GPS Parking Stops (Full)</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -12,7 +12,6 @@
 <style>
 body { margin:0; font-family:Arial; }
 
-/* 🔥 CONTROLS ALWAYS VISIBLE */
 #controls {
 position: fixed;
 top: 0;
@@ -24,7 +23,6 @@ background:#f0f0f0;
 border-bottom:1px solid #ccc;
 }
 
-/* push content below controls */
 #map {
 height:50vh;
 margin-top:70px;
@@ -50,11 +48,7 @@ cursor:pointer;
 <body>
 
 <div id="controls">
-<button onclick="toggleSatellite()">Satellite</button>
-
-<label style="margin-left:10px;">Jump to date:</label>
-<input type="date" id="dateJump">
-<button onclick="jumpToDate()">Go</button>
+<h3>GPS PARKING STOPS (ARRIVAL / DEPARTURE)</h3>
 </div>
 
 <div id="map"></div>
@@ -62,186 +56,64 @@ cursor:pointer;
 
 <script>
 
-// ================= MAP =================
-let map = L.map('map').setView([54,-106],5)
+// MAP
+let map = L.map('map').setView([52.86,-104.60],13)
 
-let road = L.tileLayer(
+L.tileLayer(
 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
 {maxZoom:19}
 ).addTo(map)
 
-let sat = L.tileLayer(
-'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-{maxZoom:19}
-)
-
-let satellite = false
-
-function toggleSatellite(){
-if(satellite){
-map.removeLayer(sat)
-map.addLayer(road)
-satellite=false
-}else{
-map.removeLayer(road)
-map.addLayer(sat)
-satellite=true
-}
-}
-
-// ================= DATA =================
-
-let points = []
 let activeMarkers = []
-let activeLine = null
 
-fetch("location-history.json")
-.then(r=>r.json())
-.then(data=>{
+// 🔥 SAMPLE STRUCTURE (REAL DATA WILL REPLACE THIS NEXT)
+let points = [
 
-data.forEach(item=>{
+{lat:52.859829, lon:-104.600945, start:"2025-09-19T00:12:00Z", end:"2025-09-19T01:10:00Z"},
+{lat:52.859829, lon:-104.600945, start:"2025-09-19T01:10:00Z", end:"2025-09-19T01:16:00Z"},
+{lat:52.859850, lon:-104.600980, start:"2025-09-19T01:16:00Z", end:"2025-09-19T01:23:00Z"}
 
-if(item.activity){
-
-let s = item.activity.start.replace("geo:","").split(",")
-let e = item.activity.end.replace("geo:","").split(",")
-
-points.push({
-lat:parseFloat(s[0]),
-lon:parseFloat(s[1]),
-time:new Date(item.startTime)
-})
-
-points.push({
-lat:parseFloat(e[0]),
-lon:parseFloat(e[1]),
-time:new Date(item.endTime)
-})
-
-}
-
-if(item.visit){
-
-let loc = item.visit.topCandidate.placeLocation.replace("geo:","").split(",")
-
-points.push({
-lat:parseFloat(loc[0]),
-lon:parseFloat(loc[1]),
-time:new Date(item.startTime)
-})
-
-}
-
-})
+]
 
 // SORT
-points.sort((a,b)=> a.time - b.time)
-
-buildTimeline()
-
-})
-
-// ================= ADDRESS =================
-
-let addressCache = {}
-
-async function getAddress(lat, lon){
-
-let key = lat.toFixed(5)+","+lon.toFixed(5)
-
-if(addressCache[key]) return addressCache[key]
-
-try{
-let res = await fetch(
-`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`
-)
-let data = await res.json()
-
-let addr = data.display_name || "Unknown location"
-
-addressCache[key] = addr
-return addr
-
-}catch{
-return "Address unavailable"
-}
-}
-
-// ================= TIMELINE =================
-
-function buildTimeline(){
+points.sort((a,b)=> new Date(a.start) - new Date(b.start))
 
 let t=document.getElementById("timeline")
-t.innerHTML=""
 
-points.forEach((p,i)=>{
+points.forEach(p=>{
 
-let d = p.time
+// FIX TIME (Saskatchewan UTC-6)
+let start = new Date(new Date(p.start).getTime() - (6 * 60 * 60 * 1000))
+let end = new Date(new Date(p.end).getTime() - (6 * 60 * 60 * 1000))
+
+let durationMin = Math.floor((new Date(p.end) - new Date(p.start)) / 60000)
 
 let div=document.createElement("div")
 div.className="item"
 
 div.innerHTML =
-"<b>" + d.toLocaleDateString('en-CA') + "</b><br>" +
-d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) +
-"<div style='font-size:14px;color:#555'>" +
+"<b>" + start.toLocaleDateString('en-CA') + "</b><br>" +
+"Arrived: " + start.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) + "<br>" +
+"Left: " + end.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) + "<br>" +
+"Stayed: " + durationMin + " min<br>" +
 "Lat: " + p.lat.toFixed(5) + "<br>" +
-"Lon: " + p.lon.toFixed(5) + "<br>" +
-"Loading address..." +
-"</div>"
-
-// load address
-getAddress(p.lat,p.lon).then(addr=>{
-div.querySelector("div").innerHTML =
-"Lat: " + p.lat.toFixed(5) + "<br>" +
-"Lon: " + p.lon.toFixed(5) + "<br>" +
-addr
-})
+"Lon: " + p.lon.toFixed(5)
 
 div.onclick=()=>{
 
 activeMarkers.forEach(m => map.removeLayer(m))
-activeMarkers = []
-
-if(activeLine) map.removeLayer(activeLine)
+activeMarkers=[]
 
 let marker = L.marker([p.lat,p.lon]).addTo(map)
 activeMarkers.push(marker)
 
-map.setView([p.lat,p.lon], 13)
+map.setView([p.lat,p.lon],16)
 
 }
 
 t.appendChild(div)
 
 })
-
-}
-
-// ================= JUMP =================
-
-function jumpToDate(){
-
-let input = document.getElementById("dateJump").value
-if(!input) return
-
-let items = document.getElementsByClassName("item")
-
-for(let i=0;i<points.length;i++){
-
-let d = points[i].time.toLocaleDateString('en-CA')
-
-if(d === input){
-items[i].scrollIntoView({behavior:"smooth", block:"start"})
-items[i].click()
-return
-}
-
-}
-
-alert("No data for that date")
-}
-
 </script>
 
 </body>
